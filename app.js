@@ -108,7 +108,7 @@ function loadGSA() {
 
 function loadCorcoranClay() {
     fetch("data/corcoran_clay.geojson")
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
         .then(data => {
             map.addSource("corcoran-clay", { type: "geojson", data });
 
@@ -116,7 +116,7 @@ function loadCorcoranClay() {
                 id: "corcoran-clay",
                 type: "line",
                 source: "corcoran-clay",
-                layout: { visibility: "none" },
+                layout: { visibility: "visible" },
                 paint: {
                     "line-color": [
                         "interpolate", ["linear"], ["get", "THICKNESS"],
@@ -139,7 +139,7 @@ function loadCorcoranClay() {
                 type: "symbol",
                 source: "corcoran-clay",
                 layout: {
-                    visibility: "none",
+                    visibility: "visible",
                     "symbol-placement": "line",
                     "text-field": ["concat", ["to-string", ["get", "THICKNESS"]], " ft"],
                     "text-size": 11,
@@ -153,7 +153,8 @@ function loadCorcoranClay() {
                     "text-halo-width": 1.5,
                 },
             });
-        });
+        })
+        .catch(err => console.error("Corcoran Clay load error:", err));
 }
 
 /* ── Load and parse wells CSV ─────────────────────────── */
