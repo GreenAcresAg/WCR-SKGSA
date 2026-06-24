@@ -457,13 +457,29 @@ document.getElementById("detail-close").addEventListener("click", closeDetailPan
 
 map.on("click", "clusters", (e) => {
     const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
-    const clusterId = features[0].properties.cluster_id;
-    map.getSource("wells").getClusterExpansionZoom(clusterId, (err, zoom) => {
+    const cluster = features[0];
+    const clusterId = cluster.properties.cluster_id;
+    const source = map.getSource("wells");
+    const coords = cluster.geometry.coordinates;
+    const pointCount = cluster.properties.point_count;
+
+    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
         if (err) return;
-        map.easeTo({
-            center: features[0].geometry.coordinates,
-            zoom: zoom,
-        });
+
+        // If already at or near max cluster zoom, show all wells in detail panel
+        if (zoom >= 16 || map.getZoom() >= 15) {
+            source.getClusterLeaves(clusterId, pointCount, 0, (err2, leaves) => {
+                if (err2 || !leaves) return;
+                // Match leaves back to our filteredWells by WCR number
+                const wcrNumbers = new Set(leaves.map(l => l.properties.WCRNumber));
+                const wells = filteredWells.filter(w => wcrNumbers.has(w.WCRNumber));
+                if (wells.length > 0) {
+                    showDetailPanel(wells, coords[0], coords[1]);
+                }
+            });
+        } else {
+            map.easeTo({ center: coords, zoom: zoom });
+        }
     });
 });
 
@@ -490,6 +506,15 @@ map.on("mouseenter", "clusters", () => {
 });
 map.on("mouseleave", "clusters", () => {
     map.getCanvas().style.cursor = "";
+    popup.classList.add("hidden");
+});
+map.on("mousemove", "clusters", (e) => {
+    map.getCanvas().style.cursor = "pointer";
+    const count = e.features[0].properties.point_count;
+    popup.innerHTML = `<div class="popup-title">${count} wells in this area</div><div class="popup-hint">Click to expand</div>`;
+    popup.classList.remove("hidden");
+    popup.style.left = (e.originalEvent.clientX + 12) + "px";
+    popup.style.top = (e.originalEvent.clientY - 12) + "px";
 });
 
 const popup = document.getElementById("popup");
