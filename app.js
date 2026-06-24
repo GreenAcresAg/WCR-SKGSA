@@ -72,6 +72,7 @@ map.addControl(new maplibregl.NavigationControl(), "top-right");
 map.on("load", () => {
     loadGSA();
     loadCorcoranClay();
+    loadCorcoranDepth();
     loadWells();
 });
 
@@ -155,6 +156,58 @@ function loadCorcoranClay() {
             });
         })
         .catch(err => console.error("Corcoran Clay load error:", err));
+}
+
+/* ── Load Corcoran Clay depth (top of clay) contours ─── */
+
+function loadCorcoranDepth() {
+    fetch("data/corcoran_depth.geojson")
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(data => {
+            map.addSource("corcoran-depth", { type: "geojson", data });
+
+            map.addLayer({
+                id: "corcoran-depth",
+                type: "line",
+                source: "corcoran-depth",
+                layout: { visibility: "visible" },
+                paint: {
+                    "line-color": [
+                        "interpolate", ["linear"], ["get", "COR_DEPTH"],
+                        50,  "#fca5a5",
+                        250, "#ef4444",
+                        500, "#b91c1c",
+                        900, "#7f1d1d",
+                    ],
+                    "line-width": [
+                        "interpolate", ["linear"], ["zoom"],
+                        8, 1.5, 14, 3,
+                    ],
+                    "line-opacity": 0.8,
+                },
+            });
+
+            map.addLayer({
+                id: "corcoran-depth-labels",
+                type: "symbol",
+                source: "corcoran-depth",
+                layout: {
+                    visibility: "visible",
+                    "symbol-placement": "line",
+                    "text-field": ["concat", ["to-string", ["get", "COR_DEPTH"]], " ft"],
+                    "text-size": 11,
+                    "text-offset": [0, -0.8],
+                    "symbol-spacing": 300,
+                    "text-allow-overlap": false,
+                },
+                paint: {
+                    "text-color": "#fecaca",
+                    "text-halo-color": "rgba(0,0,0,0.7)",
+                    "text-halo-width": 1.5,
+                },
+            });
+        })
+        .catch(err => console.error("Corcoran Depth load error:", err));
 }
 
 /* ── Load and parse wells CSV ─────────────────────────── */
@@ -477,6 +530,10 @@ document.querySelectorAll("[data-layer]").forEach(cb => {
             ["corcoran-clay", "corcoran-clay-labels"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
             });
+        } else if (layerId === "corcoran-depth") {
+            ["corcoran-depth", "corcoran-depth-labels"].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            });
         } else if (layerId === "gsa-boundary") {
             if (map.getLayer("gsa-boundary")) map.setLayoutProperty("gsa-boundary", "visibility", vis);
             if (map.getLayer("gsa-fill")) map.setLayoutProperty("gsa-fill", "visibility", vis);
@@ -615,7 +672,21 @@ map.on("mousemove", "wells-points", (e) => {
     popup.style.top = (e.originalEvent.clientY - 12) + "px";
 });
 
-// Corcoran Clay hover
+// Corcoran Clay Depth hover
+map.on("mousemove", "corcoran-depth", (e) => {
+    map.getCanvas().style.cursor = "pointer";
+    const depth = e.features[0].properties.COR_DEPTH;
+    popup.innerHTML = `<div class="popup-title">Corcoran Clay Depth</div><div class="popup-row"><span class="popup-label">Depth to Top</span><span class="popup-value">${depth} ft</span></div>`;
+    popup.classList.remove("hidden");
+    popup.style.left = (e.originalEvent.clientX + 12) + "px";
+    popup.style.top = (e.originalEvent.clientY - 12) + "px";
+});
+map.on("mouseleave", "corcoran-depth", () => {
+    map.getCanvas().style.cursor = "";
+    popup.classList.add("hidden");
+});
+
+// Corcoran Clay Thickness hover
 map.on("mousemove", "corcoran-clay", (e) => {
     map.getCanvas().style.cursor = "pointer";
     const thickness = e.features[0].properties.THICKNESS;
