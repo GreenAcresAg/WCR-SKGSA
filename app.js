@@ -47,9 +47,18 @@ map = new maplibregl.Map({
                 tileSize: 256,
                 maxzoom: 19,
             },
+            "roads": {
+                type: "raster",
+                tiles: [
+                    "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+                ],
+                tileSize: 256,
+                maxzoom: 19,
+            },
         },
         layers: [
             { id: "satellite", type: "raster", source: "satellite" },
+            { id: "roads", type: "raster", source: "roads", paint: { "raster-opacity": 0.8 } },
             { id: "labels", type: "raster", source: "labels", paint: { "raster-opacity": 0.7 } },
         ],
     },
@@ -627,9 +636,12 @@ document.querySelectorAll(".basemap-option").forEach(opt => {
             if (bm.attribution) src.setAttribution(bm.attribution);
         }
 
-        // Toggle reference labels
+        // Toggle reference labels and roads
         if (map.getLayer("labels")) {
             map.setLayoutProperty("labels", "visibility", bm.labels ? "visible" : "none");
+        }
+        if (map.getLayer("roads")) {
+            map.setLayoutProperty("roads", "visibility", bm.labels ? "visible" : "none");
         }
 
         // Update active state
