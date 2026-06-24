@@ -220,7 +220,7 @@ function updateMap(geojson) {
             clusterRadius: 40,
         });
 
-        // Heatmap layer (uses unclustered source)
+        // Heatmap layer (rendered BELOW clusters so it doesn't block clicks)
         map.addSource("wells-heat-src", { type: "geojson", data: geojson });
         map.addLayer({
             id: "wells-heat",
@@ -258,7 +258,25 @@ function updateMap(geojson) {
             },
         });
 
-        // Cluster circles
+        // Individual well points (unclustered) — above heatmap, below clusters
+        map.addLayer({
+            id: "wells-points",
+            type: "circle",
+            source: "wells",
+            filter: ["!", ["has", "point_count"]],
+            paint: {
+                "circle-radius": [
+                    "interpolate", ["linear"], ["zoom"],
+                    10, 2, 14, 5, 17, 8,
+                ],
+                "circle-color": ["get", "color"],
+                "circle-stroke-width": 1.5,
+                "circle-stroke-color": "rgba(255,255,255,0.5)",
+                "circle-opacity": 0.9,
+            },
+        });
+
+        // Cluster circles — rendered ON TOP of heatmap so they're clickable
         map.addLayer({
             id: "clusters",
             type: "circle",
@@ -280,7 +298,7 @@ function updateMap(geojson) {
             },
         });
 
-        // Cluster count labels
+        // Cluster count labels — topmost layer
         map.addLayer({
             id: "cluster-count",
             type: "symbol",
@@ -294,24 +312,6 @@ function updateMap(geojson) {
                 "text-color": "#ffffff",
                 "text-halo-color": "rgba(0,0,0,0.5)",
                 "text-halo-width": 1,
-            },
-        });
-
-        // Individual well points (unclustered)
-        map.addLayer({
-            id: "wells-points",
-            type: "circle",
-            source: "wells",
-            filter: ["!", ["has", "point_count"]],
-            paint: {
-                "circle-radius": [
-                    "interpolate", ["linear"], ["zoom"],
-                    10, 2, 14, 5, 17, 8,
-                ],
-                "circle-color": ["get", "color"],
-                "circle-stroke-width": 1.5,
-                "circle-stroke-color": "rgba(255,255,255,0.5)",
-                "circle-opacity": 0.9,
             },
         });
     }
@@ -453,50 +453,47 @@ document.getElementById("clear-filters").addEventListener("click", () => {
 // Close detail panel
 document.getElementById("detail-close").addEventListener("click", closeDetailPanel);
 
-/* ── Click: clusters zoom in, points show detail panel ── */
+/* ── Single click handler for all map interactions ─────── */
 
-map.on("click", "clusters", (e) => {
-    const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
-    const cluster = features[0];
-    const clusterId = cluster.properties.cluster_id;
-    const source = map.getSource("wells");
-    const coords = cluster.geometry.coordinates;
-    const pointCount = cluster.properties.point_count;
-
-    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-        if (err) return;
-
-        // If already at or near max cluster zoom, show all wells in detail panel
-        if (zoom >= 16 || map.getZoom() >= 15) {
-            source.getClusterLeaves(clusterId, pointCount, 0, (err2, leaves) => {
-                if (err2 || !leaves) return;
-                // Match leaves back to our filteredWells by WCR number
-                const wcrNumbers = new Set(leaves.map(l => l.properties.WCRNumber));
-                const wells = filteredWells.filter(w => wcrNumbers.has(w.WCRNumber));
-                if (wells.length > 0) {
-                    showDetailPanel(wells, coords[0], coords[1]);
-                }
-            });
-        } else {
-            map.easeTo({ center: coords, zoom: zoom });
-        }
-    });
-});
-
-map.on("click", "wells-points", (e) => {
-    const coords = e.features[0].geometry.coordinates;
-    const wells = findWellsAtLocation(coords[0], coords[1]);
-    if (wells.length > 0) {
-        showDetailPanel(wells, coords[0], coords[1]);
-    }
-});
-
-// Click on map background closes detail panel
 map.on("click", (e) => {
-    const features = map.queryRenderedFeatures(e.point, {
-        layers: ["wells-points", "clusters"],
-    });
-    if (features.length === 0) closeDetailPanel();
+    // Check clusters first
+    const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+    if (clusterFeatures.length > 0) {
+        const cluster = clusterFeatures[0];
+        const clusterId = cluster.properties.cluster_id;
+        const source = map.getSource("wells");
+        const coords = cluster.geometry.coordinates;
+        const pointCount = cluster.properties.point_count;
+
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+            if (err) return;
+
+            if (zoom >= 16 || map.getZoom() >= 15) {
+                // At max zoom — show all wells in detail panel
+                source.getClusterLeaves(clusterId, pointCount, 0, (err2, leaves) => {
+                    if (err2 || !leaves) return;
+                    const wcrNumbers = new Set(leaves.map(l => l.properties.WCRNumber));
+                    const wells = filteredWells.filter(w => wcrNumbers.has(w.WCRNumber));
+                    if (wells.length > 0) showDetailPanel(wells, coords[0], coords[1]);
+                });
+            } else {
+                map.easeTo({ center: coords, zoom: zoom });
+            }
+        });
+        return;
+    }
+
+    // Check individual well points
+    const pointFeatures = map.queryRenderedFeatures(e.point, { layers: ["wells-points"] });
+    if (pointFeatures.length > 0) {
+        const coords = pointFeatures[0].geometry.coordinates;
+        const wells = findWellsAtLocation(coords[0], coords[1]);
+        if (wells.length > 0) showDetailPanel(wells, coords[0], coords[1]);
+        return;
+    }
+
+    // Clicked on empty space — close panel
+    closeDetailPanel();
 });
 
 /* ── Hover: cursor changes ────────────────────────────── */
