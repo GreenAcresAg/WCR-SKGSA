@@ -208,11 +208,34 @@ body {
     height: 100vh;
 }
 
+/* ── Fullscreen button ────────────────────────────────────── */
+
+.fullscreen-btn {
+    position: absolute;
+    top: 60px;
+    right: 10px;
+    z-index: 15;
+    width: 36px;
+    height: 36px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    transition: background 0.15s;
+}
+
+.fullscreen-btn:hover { background: #334155; }
+
 /* ── Basemap selector ─────────────────────────────────────── */
 
 .basemap-selector {
     position: absolute;
-    top: 100px;
+    top: 140px;
     right: 10px;
     z-index: 15;
 }

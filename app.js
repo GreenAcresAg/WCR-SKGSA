@@ -553,6 +553,27 @@ map.on("mouseleave", "wells-points", () => {
     popup.classList.add("hidden");
 });
 
+/* ── Fullscreen toggle ───────────────────────────────── */
+
+const fsBtn = document.getElementById("fullscreen-btn");
+const fsExpand = document.getElementById("fs-expand");
+const fsCollapse = document.getElementById("fs-collapse");
+
+fsBtn.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+        document.exitFullscreen();
+    }
+});
+
+document.addEventListener("fullscreenchange", () => {
+    const isFs = !!document.fullscreenElement;
+    fsExpand.style.display = isFs ? "none" : "block";
+    fsCollapse.style.display = isFs ? "block" : "none";
+    setTimeout(() => map.resize(), 100);
+});
+
 /* ── Basemap selector ────────────────────────────────── */
 
 const BASEMAPS = {
