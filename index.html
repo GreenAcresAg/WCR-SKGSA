@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SFKGSA Well Completion Report Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="sidebar-header">
+        <h1>Well Completion Report Map</h1>
+        <p class="subtitle">South Fork Kings GSA</p>
+    </div>
+
+    <div class="sidebar-section">
+        <h3 class="section-title">Layers</h3>
+
+        <label class="layer-toggle">
+            <input type="checkbox" data-layer="gsa-boundary" checked>
+            <span class="toggle-swatch" style="background:#f59e0b"></span>
+            South Fork Kings GSA
+        </label>
+
+        <label class="layer-toggle">
+            <input type="checkbox" data-layer="wells-heat" checked>
+            <span class="toggle-swatch" style="background:linear-gradient(90deg,#00ff00,#ffff00,#ff0000)"></span>
+            Well Density Heatmap
+        </label>
+
+        <label class="layer-toggle">
+            <input type="checkbox" data-layer="wells-points" checked>
+            <span class="toggle-swatch" style="background:#3b82f6"></span>
+            Well Points
+        </label>
+
+        <div class="well-type-toggles">
+            <label class="layer-toggle sub-toggle">
+                <input type="checkbox" data-welltype="irrigation" checked>
+                <span class="toggle-swatch" style="background:#22c55e"></span>
+                Ag Irrigation Wells
+                <span class="count" id="count-irrigation"></span>
+            </label>
+            <label class="layer-toggle sub-toggle">
+                <input type="checkbox" data-welltype="domestic" checked>
+                <span class="toggle-swatch" style="background:#3b82f6"></span>
+                Domestic Wells
+                <span class="count" id="count-domestic"></span>
+            </label>
+            <label class="layer-toggle sub-toggle">
+                <input type="checkbox" data-welltype="public" checked>
+                <span class="toggle-swatch" style="background:#a855f7"></span>
+                Public &amp; Industrial Wells
+                <span class="count" id="count-public"></span>
+            </label>
+            <label class="layer-toggle sub-toggle">
+                <input type="checkbox" data-welltype="monitoring" checked>
+                <span class="toggle-swatch" style="background:#f97316"></span>
+                Monitoring Wells
+                <span class="count" id="count-monitoring"></span>
+            </label>
+            <label class="layer-toggle sub-toggle">
+                <input type="checkbox" data-welltype="other" checked>
+                <span class="toggle-swatch" style="background:#6b7280"></span>
+                Other / Unknown
+                <span class="count" id="count-other"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="sidebar-section">
+        <h3 class="section-title">Filters</h3>
+
+        <div class="filter-group">
+            <label class="filter-label">Well Use</label>
+            <select id="filter-use" class="filter-control">
+                <option value="">All Types</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Township</label>
+            <select id="filter-township" class="filter-control">
+                <option value="">All Townships</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Range</label>
+            <select id="filter-range" class="filter-control">
+                <option value="">All Ranges</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Section</label>
+            <select id="filter-section" class="filter-control">
+                <option value="">All Sections</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Depth (ft)</label>
+            <div class="range-inputs">
+                <input type="number" id="filter-depth-min" class="filter-control filter-control--half" placeholder="Min">
+                <span class="range-sep">&ndash;</span>
+                <input type="number" id="filter-depth-max" class="filter-control filter-control--half" placeholder="Max">
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Permit Year</label>
+            <div class="range-inputs">
+                <input type="number" id="filter-year-min" class="filter-control filter-control--half" placeholder="Min">
+                <span class="range-sep">&ndash;</span>
+                <input type="number" id="filter-year-max" class="filter-control filter-control--half" placeholder="Max">
+            </div>
+        </div>
+
+        <button id="clear-filters" class="btn-clear">Clear All Filters</button>
+    </div>
+
+    <div class="sidebar-section sidebar-stats">
+        <span id="well-count">0</span> wells shown
+    </div>
+</div>
+
+<div id="map"></div>
+
+<div id="popup" class="map-popup hidden"></div>
+
+<div id="detail-panel" class="detail-panel hidden">
+    <div class="detail-header">
+        <span id="detail-count"></span>
+        <button id="detail-close" class="detail-close-btn">&times;</button>
+    </div>
+    <div id="detail-list" class="detail-list"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
