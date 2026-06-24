@@ -71,6 +71,7 @@ map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 map.on("load", () => {
     loadGSA();
+    loadCorcoranClay();
     loadWells();
 });
 
@@ -98,6 +99,58 @@ function loadGSA() {
                 paint: {
                     "fill-color": "#f59e0b",
                     "fill-opacity": 0.05,
+                },
+            }, "gsa-boundary");
+        });
+}
+
+/* ── Load Corcoran Clay depth contours ───────────────── */
+
+function loadCorcoranClay() {
+    fetch("data/corcoran_clay.geojson")
+        .then(r => r.json())
+        .then(data => {
+            map.addSource("corcoran-clay", { type: "geojson", data });
+
+            map.addLayer({
+                id: "corcoran-clay",
+                type: "line",
+                source: "corcoran-clay",
+                layout: { visibility: "none" },
+                paint: {
+                    "line-color": [
+                        "interpolate", ["linear"], ["get", "THICKNESS"],
+                        10,  "#93c5fd",
+                        60,  "#3b82f6",
+                        120, "#1d4ed8",
+                        200, "#1e3a5f",
+                    ],
+                    "line-width": [
+                        "interpolate", ["linear"], ["zoom"],
+                        8, 1.5, 14, 3,
+                    ],
+                    "line-opacity": 0.8,
+                },
+            }, "gsa-boundary");
+
+            // Labels on contour lines
+            map.addLayer({
+                id: "corcoran-clay-labels",
+                type: "symbol",
+                source: "corcoran-clay",
+                layout: {
+                    visibility: "none",
+                    "symbol-placement": "line",
+                    "text-field": ["concat", ["to-string", ["get", "THICKNESS"]], " ft"],
+                    "text-size": 11,
+                    "text-offset": [0, -0.8],
+                    "symbol-spacing": 300,
+                    "text-allow-overlap": false,
+                },
+                paint: {
+                    "text-color": "#bfdbfe",
+                    "text-halo-color": "rgba(0,0,0,0.7)",
+                    "text-halo-width": 1.5,
                 },
             }, "gsa-boundary");
         });
@@ -419,6 +472,10 @@ document.querySelectorAll("[data-layer]").forEach(cb => {
             ["wells-points", "clusters", "cluster-count"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
             });
+        } else if (layerId === "corcoran-clay") {
+            ["corcoran-clay", "corcoran-clay-labels"].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            });
         } else if (layerId === "gsa-boundary") {
             if (map.getLayer("gsa-boundary")) map.setLayoutProperty("gsa-boundary", "visibility", vis);
             if (map.getLayer("gsa-fill")) map.setLayoutProperty("gsa-fill", "visibility", vis);
@@ -555,6 +612,20 @@ map.on("mousemove", "wells-points", (e) => {
     popup.classList.remove("hidden");
     popup.style.left = (e.originalEvent.clientX + 12) + "px";
     popup.style.top = (e.originalEvent.clientY - 12) + "px";
+});
+
+// Corcoran Clay hover
+map.on("mousemove", "corcoran-clay", (e) => {
+    map.getCanvas().style.cursor = "pointer";
+    const thickness = e.features[0].properties.THICKNESS;
+    popup.innerHTML = `<div class="popup-title">Corcoran Clay</div><div class="popup-row"><span class="popup-label">Depth</span><span class="popup-value">${thickness} ft</span></div>`;
+    popup.classList.remove("hidden");
+    popup.style.left = (e.originalEvent.clientX + 12) + "px";
+    popup.style.top = (e.originalEvent.clientY - 12) + "px";
+});
+map.on("mouseleave", "corcoran-clay", () => {
+    map.getCanvas().style.cursor = "";
+    popup.classList.add("hidden");
 });
 
 map.on("mouseleave", "wells-points", () => {
