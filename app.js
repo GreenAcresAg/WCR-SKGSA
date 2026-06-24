@@ -273,7 +273,7 @@ function updateMap(geojson) {
                 ],
                 "circle-radius": [
                     "step", ["get", "point_count"],
-                    16, 10, 20, 50, 26,
+                    12, 10, 16, 50, 20,
                 ],
                 "circle-stroke-width": 2,
                 "circle-stroke-color": "rgba(255,255,255,0.6)",
@@ -287,12 +287,13 @@ function updateMap(geojson) {
             source: "wells",
             filter: ["has", "point_count"],
             layout: {
-                "text-field": "{point_count_abbreviated}",
+                "text-field": ["get", "point_count_abbreviated"],
                 "text-size": 12,
-                "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
             },
             paint: {
                 "text-color": "#ffffff",
+                "text-halo-color": "rgba(0,0,0,0.5)",
+                "text-halo-width": 1,
             },
         });
 
@@ -305,7 +306,7 @@ function updateMap(geojson) {
             paint: {
                 "circle-radius": [
                     "interpolate", ["linear"], ["zoom"],
-                    10, 3, 14, 6, 17, 9,
+                    10, 2, 14, 5, 17, 8,
                 ],
                 "circle-color": ["get", "color"],
                 "circle-stroke-width": 1.5,
