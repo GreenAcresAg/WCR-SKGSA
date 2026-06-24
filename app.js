@@ -131,7 +131,7 @@ function loadCorcoranClay() {
                     ],
                     "line-opacity": 0.8,
                 },
-            }, "gsa-boundary");
+            });
 
             // Labels on contour lines
             map.addLayer({
@@ -152,7 +152,7 @@ function loadCorcoranClay() {
                     "text-halo-color": "rgba(0,0,0,0.7)",
                     "text-halo-width": 1.5,
                 },
-            }, "gsa-boundary");
+            });
         });
 }
 
