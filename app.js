@@ -455,7 +455,7 @@ document.getElementById("detail-close").addEventListener("click", closeDetailPan
 
 /* ── Single click handler for all map interactions ─────── */
 
-map.on("click", (e) => {
+map.on("click", async (e) => {
     // Check clusters first
     const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
     if (clusterFeatures.length > 0) {
@@ -465,21 +465,22 @@ map.on("click", (e) => {
         const coords = cluster.geometry.coordinates;
         const pointCount = cluster.properties.point_count;
 
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-            if (err) return;
+        try {
+            const zoom = await source.getClusterExpansionZoom(clusterId);
 
             if (zoom >= 16 || map.getZoom() >= 15) {
                 // At max zoom — show all wells in detail panel
-                source.getClusterLeaves(clusterId, pointCount, 0, (err2, leaves) => {
-                    if (err2 || !leaves) return;
-                    const wcrNumbers = new Set(leaves.map(l => l.properties.WCRNumber));
-                    const wells = filteredWells.filter(w => wcrNumbers.has(w.WCRNumber));
-                    if (wells.length > 0) showDetailPanel(wells, coords[0], coords[1]);
-                });
+                const leaves = await source.getClusterLeaves(clusterId, pointCount, 0);
+                const wcrNumbers = new Set(leaves.map(l => l.properties.WCRNumber));
+                const wells = filteredWells.filter(w => wcrNumbers.has(w.WCRNumber));
+                if (wells.length > 0) showDetailPanel(wells, coords[0], coords[1]);
             } else {
                 map.easeTo({ center: coords, zoom: zoom });
             }
-        });
+        } catch (err) {
+            // Fallback: just zoom in toward the cluster
+            map.easeTo({ center: coords, zoom: map.getZoom() + 2 });
+        }
         return;
     }
 
