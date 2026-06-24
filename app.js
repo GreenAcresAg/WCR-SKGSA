@@ -553,6 +553,72 @@ map.on("mouseleave", "wells-points", () => {
     popup.classList.add("hidden");
 });
 
+/* ── Basemap selector ────────────────────────────────── */
+
+const BASEMAPS = {
+    satellite: {
+        tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        labels: false,
+        attribution: "Esri, Maxar, Earthstar Geographics",
+    },
+    hybrid: {
+        tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        labels: true,
+        attribution: "Esri, Maxar, Earthstar Geographics",
+    },
+    usgs: {
+        tiles: ["https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"],
+        labels: false,
+        attribution: "USGS",
+    },
+    streets: {
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        labels: false,
+        attribution: "&copy; OpenStreetMap contributors",
+    },
+};
+
+let currentBasemap = "hybrid";
+
+document.getElementById("basemap-btn").addEventListener("click", () => {
+    document.getElementById("basemap-menu").classList.toggle("hidden");
+});
+
+// Close menu when clicking elsewhere
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".basemap-selector")) {
+        document.getElementById("basemap-menu").classList.add("hidden");
+    }
+});
+
+document.querySelectorAll(".basemap-option").forEach(opt => {
+    opt.addEventListener("click", () => {
+        const id = opt.dataset.basemap;
+        if (id === currentBasemap) return;
+
+        currentBasemap = id;
+        const bm = BASEMAPS[id];
+
+        // Update satellite/base tiles
+        const src = map.getSource("satellite");
+        if (src) {
+            src.setTiles(bm.tiles);
+            if (bm.attribution) src.setAttribution(bm.attribution);
+        }
+
+        // Toggle reference labels
+        if (map.getLayer("labels")) {
+            map.setLayoutProperty("labels", "visibility", bm.labels ? "visible" : "none");
+        }
+
+        // Update active state
+        document.querySelectorAll(".basemap-option").forEach(o => o.classList.remove("active"));
+        opt.classList.add("active");
+
+        document.getElementById("basemap-menu").classList.add("hidden");
+    });
+});
+
 /* ── Utility ──────────────────────────────────────────── */
 
 function debounce(fn, ms) {

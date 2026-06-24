@@ -130,6 +130,33 @@
 
 <div id="map"></div>
 
+<div id="basemap-selector" class="basemap-selector">
+    <button id="basemap-btn" class="basemap-btn" title="Change basemap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+    </button>
+    <div id="basemap-menu" class="basemap-menu hidden">
+        <div class="basemap-option active" data-basemap="hybrid">
+            <div class="basemap-thumb hybrid-thumb"></div>
+            <span>Hybrid</span>
+        </div>
+        <div class="basemap-option" data-basemap="satellite">
+            <div class="basemap-thumb satellite-thumb"></div>
+            <span>Satellite</span>
+        </div>
+        <div class="basemap-option" data-basemap="usgs">
+            <div class="basemap-thumb usgs-thumb"></div>
+            <span>USGS Topo</span>
+        </div>
+        <div class="basemap-option" data-basemap="streets">
+            <div class="basemap-thumb streets-thumb"></div>
+            <span>Streets</span>
+        </div>
+    </div>
+</div>
+
 <div id="popup" class="map-popup hidden"></div>
 
 <div id="detail-panel" class="detail-panel hidden">
