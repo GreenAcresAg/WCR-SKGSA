@@ -536,3 +536,35 @@ function debounce(fn, ms) {
     let t;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
+
+/* ── Sidebar toggle ───────────────────────────────────── */
+
+const sidebarToggle = document.getElementById("sidebar-toggle");
+const sidebar = document.getElementById("sidebar");
+
+sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-closed");
+    sidebar.classList.toggle("sidebar-open");
+    // Let map resize to fill space
+    setTimeout(() => map.resize(), 300);
+});
+
+// Auto-collapse sidebar in small viewports (embedded iframe)
+function checkSidebarFit() {
+    if (window.innerWidth < 900) {
+        sidebarToggle.classList.add("visible");
+        if (sidebar.classList.contains("sidebar-open")) {
+            sidebar.classList.remove("sidebar-open");
+            sidebar.classList.add("sidebar-closed");
+            setTimeout(() => map.resize(), 300);
+        }
+    } else {
+        sidebarToggle.classList.remove("visible");
+        sidebar.classList.remove("sidebar-closed");
+        sidebar.classList.add("sidebar-open");
+        setTimeout(() => map.resize(), 300);
+    }
+}
+
+checkSidebarFit();
+window.addEventListener("resize", debounce(checkSidebarFit, 200));
