@@ -690,7 +690,7 @@ map.on("mouseleave", "corcoran-depth", () => {
 map.on("mousemove", "corcoran-clay", (e) => {
     map.getCanvas().style.cursor = "pointer";
     const thickness = e.features[0].properties.THICKNESS;
-    popup.innerHTML = `<div class="popup-title">Corcoran Clay</div><div class="popup-row"><span class="popup-label">Depth</span><span class="popup-value">${thickness} ft</span></div>`;
+    popup.innerHTML = `<div class="popup-title">Corcoran Clay Thickness</div><div class="popup-row"><span class="popup-label">Thickness</span><span class="popup-value">${thickness} ft</span></div>`;
     popup.classList.remove("hidden");
     popup.style.left = (e.originalEvent.clientX + 12) + "px";
     popup.style.top = (e.originalEvent.clientY - 12) + "px";
