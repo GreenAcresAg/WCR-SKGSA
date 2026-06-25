@@ -54,6 +54,26 @@ body {
     margin-left: -280px;
 }
 
+/* ── Branding ────────────────────────────────────────────── */
+
+.sidebar-branding {
+    padding: 14px 16px 8px;
+    border-bottom: 1px solid #334155;
+    text-align: center;
+    background: #ffffff;
+}
+
+.sidebar-logo {
+    width: 180px;
+    height: auto;
+}
+
+.branding-credit {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
 .sidebar-header {
     padding: 20px 16px 12px;
     border-bottom: 1px solid #334155;
@@ -199,6 +219,50 @@ body {
     font-weight: 700;
     color: #f8fafc;
     font-variant-numeric: tabular-nums;
+}
+
+/* ── Disclaimer ──────────────────────────────────────────── */
+
+.sidebar-disclaimer {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.6;
+    border-bottom: none;
+}
+
+.sidebar-disclaimer p {
+    margin-bottom: 6px;
+}
+
+.sidebar-disclaimer ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px 0;
+}
+
+.sidebar-disclaimer li {
+    padding: 2px 0;
+}
+
+.sidebar-disclaimer li::before {
+    content: "\2022";
+    color: #475569;
+    margin-right: 6px;
+}
+
+.sidebar-disclaimer a {
+    color: #60a5fa;
+    text-decoration: none;
+}
+
+.sidebar-disclaimer a:hover {
+    text-decoration: underline;
+}
+
+.disclaimer-text {
+    font-size: 10px;
+    color: #64748b;
+    font-style: italic;
 }
 
 /* ── Map ─────────────────────────────────────────────────── */

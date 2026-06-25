@@ -11,6 +11,11 @@
 
 <button id="sidebar-toggle" class="sidebar-toggle-btn">&#9776;</button>
 <div id="sidebar" class="sidebar-open">
+    <div class="sidebar-branding">
+        <img src="data/logo.png" alt="Green Acres Consulting, Inc." class="sidebar-logo">
+        <p class="branding-credit">Created by Green Acres Consulting, Inc.</p>
+    </div>
+
     <div class="sidebar-header">
         <h1>Well Completion Report Map</h1>
         <p class="subtitle">South Fork Kings GSA</p>
@@ -137,6 +142,17 @@
 
     <div class="sidebar-section sidebar-stats">
         <span id="well-count">0</span> wells shown
+    </div>
+
+    <div class="sidebar-section sidebar-disclaimer">
+        <h3 class="section-title">Data Sources</h3>
+        <p>All data shown on this map was obtained from publicly available datasets:</p>
+        <ul>
+            <li><a href="https://data.cnra.ca.gov/dataset/well-completion-reports" target="_blank">Well Completion Reports</a> &mdash; CA Dept. of Water Resources</li>
+            <li><a href="https://sgma.water.ca.gov/webgis/?appid=SGMADataViewer" target="_blank">GSA Boundaries</a> &mdash; SGMA Data Viewer</li>
+            <li><a href="https://www.usgs.gov/publications/corcoran-clay-central-valley-california" target="_blank">Corcoran Clay Data</a> &mdash; USGS</li>
+        </ul>
+        <p class="disclaimer-text">This map is provided for informational purposes only. Well locations may not reflect actual field positions and are subject to ongoing verification.</p>
     </div>
 </div>
 
