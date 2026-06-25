@@ -15,14 +15,14 @@
  */
 
 const SHEET_ID = 'YOUR_SHEET_ID_HERE';
-const SHEET_NAME = 'Sheet1';
+const SHEET_NAME = ''; // leave empty to use the first sheet
 
 /* ── GET: return all wells as JSON ────────────────────── */
 
 function doGet(e) {
   try {
     const ss = SpreadsheetApp.openById(SHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
+    const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
 
@@ -51,7 +51,7 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.openById(SHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
+    const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
 
