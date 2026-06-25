@@ -86,39 +86,64 @@ function loadGSA() {
         });
 }
 
-/* ── Load wells from Google Sheets API ────────────────── */
+/* ── Load wells (Google Sheets API or CSV fallback) ──── */
 
 function loadWells() {
-    fetch(API_URL)
-        .then(r => r.json())
-        .then(result => {
-            if (!result.success) throw new Error(result.error);
+    const useAPI = API_URL && !API_URL.includes('YOUR_');
 
-            allWells = result.data
-                .filter(r => r.latitude && r.longitude)
-                .map(r => ({
-                    ...r,
-                    lat: +r.latitude,
-                    lng: +r.longitude,
-                    reviewedLat: r.reviewed_latitude ? +r.reviewed_latitude : null,
-                    reviewedLng: r.reviewed_longitude ? +r.reviewed_longitude : null,
-                    depth: r.TotalCompletedDepth ? +r.TotalCompletedDepth : null,
-                    status: r.review_status || 'unreviewed',
-                    notes: r.review_notes || '',
-                    reviewedBy: r.reviewed_by || '',
-                    reviewedDate: r.reviewed_date || '',
-                    screenIntervals: r.screen_intervals || '',
-                    zoneClassification: r.zone_classification || '',
-                }));
+    if (useAPI) {
+        fetch(API_URL)
+            .then(r => r.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.error);
+                processWellData(result.data);
+            })
+            .catch(err => {
+                console.error('API load failed, falling back to CSV:', err);
+                showToast('Google Sheets not configured — loading from local CSV', 'error');
+                loadWellsFromCSV();
+            });
+    } else {
+        loadWellsFromCSV();
+    }
+}
 
-            updateStats();
-            renderWellList();
-            updateMapSource();
-        })
-        .catch(err => {
-            console.error('Failed to load wells:', err);
-            showToast('Failed to load well data: ' + err.message, 'error');
-        });
+function loadWellsFromCSV() {
+    Papa.parse('data/wells.csv', {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            processWellData(results.data);
+            showToast('Loaded from CSV — connect Google Sheets to enable saving', 'error');
+        },
+        error: function(err) {
+            showToast('Failed to load well data: ' + err, 'error');
+        },
+    });
+}
+
+function processWellData(data) {
+    allWells = data
+        .filter(r => r.latitude && r.longitude && !isNaN(+r.latitude))
+        .map(r => ({
+            ...r,
+            lat: +r.latitude,
+            lng: +r.longitude,
+            reviewedLat: r.reviewed_latitude ? +r.reviewed_latitude : null,
+            reviewedLng: r.reviewed_longitude ? +r.reviewed_longitude : null,
+            depth: r.TotalCompletedDepth ? +r.TotalCompletedDepth : null,
+            status: r.review_status || 'unreviewed',
+            notes: r.review_notes || '',
+            reviewedBy: r.reviewed_by || '',
+            reviewedDate: r.reviewed_date || '',
+            screenIntervals: r.screen_intervals || '',
+            zoneClassification: r.zone_classification || '',
+        }));
+
+    updateStats();
+    renderWellList();
+    updateMapSource();
 }
 
 /* ── Map source/layers ────────────────────────────────── */
