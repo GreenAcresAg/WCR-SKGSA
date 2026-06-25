@@ -62,7 +62,8 @@ function doPost(e) {
     const reviewCols = [
       'review_status', 'review_notes',
       'reviewed_latitude', 'reviewed_longitude',
-      'reviewed_by', 'reviewed_date'
+      'reviewed_by', 'reviewed_date',
+      'zone_classification', 'screen_intervals'
     ];
     reviewCols.forEach(col => {
       if (headers.indexOf(col) === -1) {
@@ -83,6 +84,8 @@ function doPost(e) {
           reviewed_longitude: payload.reviewed_longitude,
           reviewed_by: payload.reviewed_by,
           reviewed_date: new Date().toISOString(),
+          zone_classification: payload.zone_classification,
+          screen_intervals: payload.screen_intervals,
         };
 
         Object.keys(updates).forEach(key => {

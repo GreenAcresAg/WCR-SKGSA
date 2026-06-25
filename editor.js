@@ -107,6 +107,8 @@ function loadWells() {
                     notes: r.review_notes || '',
                     reviewedBy: r.reviewed_by || '',
                     reviewedDate: r.reviewed_date || '',
+                    screenIntervals: r.screen_intervals || '',
+                    zoneClassification: r.zone_classification || '',
                 }));
 
             updateStats();
@@ -263,6 +265,7 @@ function renderWellList() {
                     ${w.PlannedUseFormerUse || 'Unknown'} &middot;
                     ${w.depth ? w.depth + ' ft' : 'No depth'} &middot;
                     ${w.MTRS || 'No MTRS'}
+                    ${w.zoneClassification ? ' &middot; ' + w.zoneClassification : ''}
                 </div>
             </div>`;
     }).join('');
@@ -332,7 +335,24 @@ function selectWell(wcrNumber) {
             </select>
         </div>
 
-        <div>
+        <div style="margin-top:8px">
+            <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">Zone Classification</label>
+            <select class="status-select" id="zone-select">
+                <option value="" ${!w.zoneClassification ? 'selected' : ''}>— Select Zone —</option>
+                <option value="A Zone (Upper)" ${w.zoneClassification === 'A Zone (Upper)' ? 'selected' : ''}>A Zone — Upper</option>
+                <option value="B Zone (Mid)" ${w.zoneClassification === 'B Zone (Mid)' ? 'selected' : ''}>B Zone — Mid</option>
+                <option value="C Zone (Lower Confined)" ${w.zoneClassification === 'C Zone (Lower Confined)' ? 'selected' : ''}>C Zone — Lower Confined</option>
+                <option value="Composite" ${w.zoneClassification === 'Composite' ? 'selected' : ''}>Composite</option>
+            </select>
+        </div>
+
+        <div style="margin-top:8px">
+            <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">Screen Intervals (ft)</label>
+            <div id="screen-intervals-list"></div>
+            <button class="btn" style="font-size:11px;padding:4px 10px;margin-top:4px" onclick="addScreenInterval()">+ Add Interval</button>
+        </div>
+
+        <div style="margin-top:8px">
             <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">Notes</label>
             <textarea class="notes-input" id="notes-input" placeholder="Add review notes...">${w.notes || ''}</textarea>
         </div>
@@ -343,11 +363,73 @@ function selectWell(wcrNumber) {
         <button class="btn btn-success" onclick="saveWell()">Save Changes</button>
     `;
 
+    // Populate screen intervals
+    renderScreenIntervals(w.screenIntervals);
+
     highlightWell(w);
     renderWellList();
 
     // Fly to the well
     map.flyTo({ center: [displayLng, displayLat], zoom: Math.max(map.getZoom(), 15) });
+}
+
+/* ── Screen intervals ────────────────────────────────── */
+
+function parseIntervals(str) {
+    if (!str) return [];
+    return String(str).split(';').map(s => s.trim()).filter(Boolean).map(s => {
+        const parts = s.split('-').map(p => p.trim());
+        return { top: parts[0] || '', bottom: parts[1] || '' };
+    });
+}
+
+function renderScreenIntervals(str) {
+    const intervals = parseIntervals(str);
+    if (intervals.length === 0) intervals.push({ top: '', bottom: '' });
+    const container = document.getElementById('screen-intervals-list');
+    container.innerHTML = intervals.map((iv, i) => `
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px" data-interval="${i}">
+            <input type="number" class="si-top" placeholder="Top" value="${iv.top}"
+                   style="width:80px;padding:4px 6px;font-size:12px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;outline:none">
+            <span style="color:#64748b;font-size:12px">to</span>
+            <input type="number" class="si-bottom" placeholder="Bottom" value="${iv.bottom}"
+                   style="width:80px;padding:4px 6px;font-size:12px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;outline:none">
+            <span style="color:#64748b;font-size:11px">ft</span>
+            ${intervals.length > 1 ? `<button onclick="removeScreenInterval(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>` : ''}
+        </div>
+    `).join('');
+}
+
+function addScreenInterval() {
+    const current = collectScreenIntervals();
+    current.push({ top: '', bottom: '' });
+    const str = current.filter(iv => iv.top || iv.bottom).map(iv => iv.top + '-' + iv.bottom).join('; ');
+    renderScreenIntervals(str + '; -');
+}
+
+function removeScreenInterval(index) {
+    const current = collectScreenIntervals();
+    current.splice(index, 1);
+    const str = current.map(iv => iv.top + '-' + iv.bottom).join('; ');
+    renderScreenIntervals(str);
+}
+
+function collectScreenIntervals() {
+    const container = document.getElementById('screen-intervals-list');
+    const intervals = [];
+    container.querySelectorAll('[data-interval]').forEach(row => {
+        const top = row.querySelector('.si-top').value.trim();
+        const bottom = row.querySelector('.si-bottom').value.trim();
+        intervals.push({ top, bottom });
+    });
+    return intervals;
+}
+
+function serializeIntervals() {
+    return collectScreenIntervals()
+        .filter(iv => iv.top || iv.bottom)
+        .map(iv => iv.top + '-' + iv.bottom)
+        .join('; ');
 }
 
 /* ── Relocate mode ────────────────────────────────────── */
@@ -409,10 +491,14 @@ async function saveWell() {
 
     const notes = document.getElementById('notes-input').value.trim();
     const status = document.getElementById('status-select').value;
+    const zone = document.getElementById('zone-select').value;
+    const screens = serializeIntervals();
 
     selectedWell.status = status;
     selectedWell.notes = notes;
     selectedWell.reviewedBy = reviewer;
+    selectedWell.zoneClassification = zone;
+    selectedWell.screenIntervals = screens;
 
     const payload = {
         WCRNumber: selectedWell.WCRNumber,
@@ -421,6 +507,8 @@ async function saveWell() {
         reviewed_latitude: selectedWell.reviewedLat || '',
         reviewed_longitude: selectedWell.reviewedLng || '',
         reviewed_by: reviewer,
+        zone_classification: zone,
+        screen_intervals: screens,
     };
 
     try {
