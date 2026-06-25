@@ -77,6 +77,7 @@ map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 map.on("load", () => {
     loadGSA();
+    loadSurroundingGSAs();
     loadCorcoranClay();
     loadCorcoranDepth();
     loadWells();
@@ -110,6 +111,87 @@ function loadGSA() {
             }, "gsa-boundary");
         });
 }
+
+/* ── Load surrounding subbasin GSAs ──────────────────── */
+
+const SUBBASIN_COLORS = {
+    "Kings":           "#06b6d4",
+    "Tulare Lake":     "#8b5cf6",
+    "Kaweah":          "#ec4899",
+    "Tule":            "#14b8a6",
+    "Westside":        "#f43f5e",
+    "Pleasant Valley":  "#eab308",
+};
+
+function loadSurroundingGSAs() {
+    fetch("data/surrounding_gsas.geojson")
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(data => {
+            map.addSource("surrounding-gsas", { type: "geojson", data });
+
+            // One boundary line layer per subbasin (all hidden by default)
+            Object.keys(SUBBASIN_COLORS).forEach(sb => {
+                const color = SUBBASIN_COLORS[sb];
+                const layerId = "subbasin-" + sb.toLowerCase().replace(/\s+/g, "-");
+
+                map.addLayer({
+                    id: layerId,
+                    type: "line",
+                    source: "surrounding-gsas",
+                    filter: ["==", ["get", "subbasin"], sb],
+                    layout: { visibility: "none" },
+                    paint: {
+                        "line-color": color,
+                        "line-width": 2,
+                        "line-opacity": 0.8,
+                    },
+                });
+
+                map.addLayer({
+                    id: layerId + "-fill",
+                    type: "fill",
+                    source: "surrounding-gsas",
+                    filter: ["==", ["get", "subbasin"], sb],
+                    layout: { visibility: "none" },
+                    paint: {
+                        "fill-color": color,
+                        "fill-opacity": 0.06,
+                    },
+                }, layerId);
+
+                map.addLayer({
+                    id: layerId + "-labels",
+                    type: "symbol",
+                    source: "surrounding-gsas",
+                    filter: ["==", ["get", "subbasin"], sb],
+                    layout: {
+                        visibility: "none",
+                        "text-field": ["get", "GSA_Name"],
+                        "text-size": 11,
+                        "text-allow-overlap": false,
+                    },
+                    paint: {
+                        "text-color": color,
+                        "text-halo-color": "rgba(0,0,0,0.7)",
+                        "text-halo-width": 1.5,
+                    },
+                });
+            });
+        })
+        .catch(err => console.error("Surrounding GSAs load error:", err));
+}
+
+// Subbasin toggle handlers
+document.querySelectorAll("[data-subbasin]").forEach(cb => {
+    cb.addEventListener("change", () => {
+        const sb = cb.dataset.subbasin;
+        const layerId = "subbasin-" + sb.toLowerCase().replace(/\s+/g, "-");
+        const vis = cb.checked ? "visible" : "none";
+        [layerId, layerId + "-fill", layerId + "-labels"].forEach(id => {
+            if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+        });
+    });
+});
 
 /* ── Load Corcoran Clay depth contours ───────────────── */
 

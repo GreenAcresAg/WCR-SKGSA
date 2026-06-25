@@ -136,7 +136,8 @@ body {
     flex-shrink: 0;
 }
 
-.well-type-toggles {
+.well-type-toggles,
+.subbasin-toggles {
     margin-left: 22px;
     border-left: 2px solid #334155;
     padding-left: 12px;
