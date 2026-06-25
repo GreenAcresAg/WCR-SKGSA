@@ -4,7 +4,7 @@
  * Replace API_URL with your deployed Google Apps Script web app URL.
  */
 
-const API_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyF0qZzaDSP0Bx9SmYwFIfE3L5w-1JP-J5T0ckkcKmssXEkR4MEaXpZ-wXAqijKLk0j/exec';
 
 /* ── State ────────────────────────────────────────────── */
 
