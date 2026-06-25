@@ -18,6 +18,8 @@ const TYPE_COLORS = {
     other:      "#6b7280",
 };
 
+const SHEETS_API = 'https://script.google.com/macros/s/AKfycbyF0qZzaDSP0Bx9SmYwFIfE3L5w-1JP-J5T0ckkcKmssXEkR4MEaXpZ-wXAqijKLk0j/exec';
+
 /* ── State ────────────────────────────────────────────── */
 
 let map, allWells = [], filteredWells = [];
@@ -210,32 +212,51 @@ function loadCorcoranDepth() {
         .catch(err => console.error("Corcoran Depth load error:", err));
 }
 
-/* ── Load and parse wells CSV ─────────────────────────── */
+/* ── Load wells (Google Sheets with CSV fallback) ────── */
 
 function loadWells() {
-    Papa.parse("data/wells.csv", {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            allWells = results.data
-                .filter(r => r.latitude && r.longitude && !isNaN(+r.latitude))
-                .map(r => {
-                    const permitMs = parseInt(r.PermitDate);
-                    return {
-                        ...r,
-                        lat: +r.latitude,
-                        lng: +r.longitude,
-                        depth: r.TotalCompletedDepth ? +r.TotalCompletedDepth : null,
-                        wellType: classifyWell(r.PlannedUseFormerUse),
-                        permitYear: permitMs ? new Date(permitMs).getFullYear() : null,
-                    };
-                });
+    fetch(SHEETS_API)
+        .then(r => r.json())
+        .then(result => {
+            if (!result.success) throw new Error(result.error);
+            processWellData(result.data);
+        })
+        .catch(err => {
+            console.warn("Sheets API failed, falling back to CSV:", err);
+            Papa.parse("data/wells.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processWellData(results.data);
+                },
+            });
+        });
+}
 
-            populateFilters();
-            applyFilters();
-        },
-    });
+function processWellData(data) {
+    allWells = data
+        .filter(r => r.latitude && r.longitude && !isNaN(+r.latitude))
+        .map(r => {
+            const permitMs = parseInt(r.PermitDate);
+            const hasReview = r.reviewed_latitude && r.reviewed_longitude
+                && +r.reviewed_latitude !== 0;
+            return {
+                ...r,
+                lat: hasReview ? +r.reviewed_latitude : +r.latitude,
+                lng: hasReview ? +r.reviewed_longitude : +r.longitude,
+                origLat: +r.latitude,
+                origLng: +r.longitude,
+                depth: r.TotalCompletedDepth ? +r.TotalCompletedDepth : null,
+                wellType: classifyWell(r.PlannedUseFormerUse),
+                permitYear: permitMs ? new Date(permitMs).getFullYear() : null,
+                reviewStatus: r.review_status || "",
+                reviewed: hasReview || (r.review_status === "verified"),
+            };
+        });
+
+    populateFilters();
+    applyFilters();
 }
 
 /* ── Populate filter dropdowns ────────────────────────── */
@@ -317,6 +338,8 @@ function wellsToGeoJSON(wells) {
                 permitYear: w.permitYear,
                 box_link: w.box_link || "",
                 color: TYPE_COLORS[w.wellType],
+                reviewed: w.reviewed ? 1 : 0,
+                reviewStatus: w.reviewStatus || "",
             },
         })),
     };
@@ -385,9 +408,21 @@ function updateMap(geojson) {
                     "interpolate", ["linear"], ["zoom"],
                     10, 2, 14, 5, 17, 8,
                 ],
-                "circle-color": ["get", "color"],
-                "circle-stroke-width": 1.5,
-                "circle-stroke-color": "rgba(255,255,255,0.5)",
+                "circle-color": [
+                    "case",
+                    ["==", ["get", "reviewed"], 1], "#00e5ff",
+                    ["get", "color"],
+                ],
+                "circle-stroke-width": [
+                    "case",
+                    ["==", ["get", "reviewed"], 1], 2.5,
+                    1.5,
+                ],
+                "circle-stroke-color": [
+                    "case",
+                    ["==", ["get", "reviewed"], 1], "#ffffff",
+                    "rgba(255,255,255,0.5)",
+                ],
                 "circle-opacity": 0.9,
             },
         });
