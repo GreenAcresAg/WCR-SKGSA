@@ -212,7 +212,7 @@ body {
 
 .fullscreen-btn {
     position: absolute;
-    top: 60px;
+    top: 90px;
     right: 10px;
     z-index: 15;
     width: 36px;
@@ -235,7 +235,7 @@ body {
 
 .basemap-selector {
     position: absolute;
-    top: 140px;
+    top: 170px;
     right: 10px;
     z-index: 15;
 }
