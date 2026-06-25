@@ -20,6 +20,10 @@ const TYPE_COLORS = {
 
 const SHEETS_API = 'https://script.google.com/macros/s/AKfycbyF0qZzaDSP0Bx9SmYwFIfE3L5w-1JP-J5T0ckkcKmssXEkR4MEaXpZ-wXAqijKLk0j/exec';
 
+/* ── URL presets ──────────────────────────────────────── */
+
+const PRESET = new URLSearchParams(window.location.search).get("preset");
+
 /* ── State ────────────────────────────────────────────── */
 
 let map, allWells = [], filteredWells = [];
@@ -257,6 +261,27 @@ function processWellData(data) {
 
     populateFilters();
     applyFilters();
+    if (PRESET) applyPreset();
+}
+
+/* ── Apply URL preset ────────────────────────────────── */
+
+function applyPreset() {
+    if (PRESET === "clay") {
+        // Turn off wells, heatmap; keep clay layers + GSA on
+        ["wells-points", "clusters", "cluster-count", "wells-heat"].forEach(id => {
+            if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+        });
+        // Uncheck the well/heatmap checkboxes in sidebar
+        document.querySelectorAll("[data-layer]").forEach(cb => {
+            if (cb.dataset.layer === "wells-points" || cb.dataset.layer === "wells-heat") {
+                cb.checked = false;
+            }
+            if (cb.dataset.layer === "corcoran-clay" || cb.dataset.layer === "corcoran-depth") {
+                cb.checked = true;
+            }
+        });
+    }
 }
 
 /* ── Populate filter dropdowns ────────────────────────── */
