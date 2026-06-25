@@ -712,10 +712,22 @@ const fsExpand = document.getElementById("fs-expand");
 const fsCollapse = document.getElementById("fs-collapse");
 
 fsBtn.addEventListener("click", () => {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-    } else {
+    const inIframe = window.self !== window.top;
+
+    if (document.fullscreenElement) {
         document.exitFullscreen();
+        return;
+    }
+
+    if (inIframe) {
+        // Fullscreen API is blocked in iframes without allowfullscreen —
+        // open the map directly in a new tab instead
+        window.open(window.location.href, "_blank");
+    } else {
+        document.documentElement.requestFullscreen().catch(() => {
+            // Fallback if fullscreen fails for any reason
+            window.open(window.location.href, "_blank");
+        });
     }
 });
 
