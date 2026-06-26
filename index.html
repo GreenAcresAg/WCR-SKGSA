@@ -25,6 +25,12 @@
         <h3 class="section-title">Layers</h3>
 
         <label class="layer-toggle">
+            <input type="checkbox" data-layer="parcels">
+            <span class="toggle-swatch" style="background:#f97316"></span>
+            Kings County Parcels
+        </label>
+
+        <label class="layer-toggle">
             <input type="checkbox" data-layer="corcoran-clay" checked>
             <span class="toggle-swatch" style="background:linear-gradient(90deg,#93c5fd,#1e3a5f)"></span>
             Corcoran Clay Thickness
@@ -286,6 +292,7 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="app.js"></script>
 </body>

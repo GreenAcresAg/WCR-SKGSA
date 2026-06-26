@@ -1,0 +1,4 @@
+node_modules/
+data/kings_parcels.geojson
+data/tcwa_tulare_corrected.geojson
+data/tri_county_gsa.geojson

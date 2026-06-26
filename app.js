@@ -29,6 +29,11 @@ const PRESET = new URLSearchParams(window.location.search).get("preset");
 let map, allWells = [], filteredWells = [];
 const activeTypes = new Set(["irrigation", "domestic", "public", "monitoring", "other"]);
 
+/* ── PMTiles protocol ─────────────────────────────────── */
+
+const pmtilesProtocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+
 /* ── Map init ─────────────────────────────────────────── */
 
 map = new maplibregl.Map({
@@ -77,11 +82,69 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 map.on("load", () => {
+    loadParcels();
     loadSurroundingGSAs();
     loadCorcoranClay();
     loadCorcoranDepth();
     loadWells();
 });
+
+/* ── Kings County Parcels (PMTiles) ───────────────────── */
+
+function loadParcels() {
+    map.addSource("parcels", {
+        type: "vector",
+        url: "pmtiles://data/kings_parcels.pmtiles",
+    });
+    map.addLayer({
+        id: "parcels-fill",
+        type: "fill",
+        source: "parcels",
+        "source-layer": "parcels",
+        layout: { visibility: "none" },
+        minzoom: 12,
+        paint: {
+            "fill-color": "transparent",
+        },
+    });
+    map.addLayer({
+        id: "parcels",
+        type: "line",
+        source: "parcels",
+        "source-layer": "parcels",
+        layout: { visibility: "none" },
+        minzoom: 12,
+        paint: {
+            "line-color": "#f97316",
+            "line-width": [
+                "interpolate", ["linear"], ["zoom"],
+                12, 0.5, 15, 1.5,
+            ],
+            "line-opacity": 0.7,
+        },
+    });
+    map.addLayer({
+        id: "parcels-labels",
+        type: "symbol",
+        source: "parcels",
+        "source-layer": "parcels",
+        layout: {
+            visibility: "none",
+            "text-field": ["get", "APN"],
+            "text-size": [
+                "interpolate", ["linear"], ["zoom"],
+                14, 8, 16, 11,
+            ],
+            "text-allow-overlap": false,
+        },
+        minzoom: 14,
+        paint: {
+            "text-color": "#fdba74",
+            "text-halo-color": "rgba(0,0,0,0.8)",
+            "text-halo-width": 1.5,
+        },
+    });
+}
 
 /* ── SFK GSA special styling ──────────────────────────── */
 const SFK_GSA_NAME = "South Fork Kings GSA";
@@ -726,6 +789,10 @@ document.querySelectorAll("[data-layer]").forEach(cb => {
             ["corcoran-depth", "corcoran-depth-labels"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
             });
+        } else if (layerId === "parcels") {
+            ["parcels", "parcels-fill", "parcels-labels"].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            });
         } else {
             if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", vis);
         }
@@ -890,6 +957,32 @@ map.on("mouseleave", "corcoran-clay", () => {
 });
 
 map.on("mouseleave", "wells-points", () => {
+    map.getCanvas().style.cursor = "";
+    popup.classList.add("hidden");
+});
+
+/* ── Parcel hover popup ─────────────────────────────── */
+
+map.on("mousemove", "parcels-fill", (e) => {
+    if (!e.features || !e.features.length) return;
+    map.getCanvas().style.cursor = "pointer";
+    const p = e.features[0].properties;
+    const rows = [
+        `<div class="popup-title">APN: ${p.APN || "—"}</div>`,
+        p.Address1 && p.Address1.trim() ? `<div class="popup-row"><span class="popup-label">Address</span><span class="popup-value">${p.Address1}</span></div>` : "",
+        p.Community && p.Community.trim() ? `<div class="popup-row"><span class="popup-label">Community</span><span class="popup-value">${p.Community}</span></div>` : "",
+        `<div class="popup-row"><span class="popup-label">Acres</span><span class="popup-value">${p.Acres ? Number(p.Acres).toFixed(2) : "—"}</span></div>`,
+        `<div class="popup-row"><span class="popup-label">Zoning</span><span class="popup-value">${p.AsmtZoning || "—"}</span></div>`,
+        p.YearBuilt && p.YearBuilt !== "0" ? `<div class="popup-row"><span class="popup-label">Year Built</span><span class="popup-value">${p.YearBuilt}</span></div>` : "",
+        `<div class="popup-row"><span class="popup-label">Well on Parcel</span><span class="popup-value">${p.HasWell === "1" ? "Yes" : "No"}</span></div>`,
+    ].filter(Boolean).join("");
+    popup.innerHTML = rows;
+    popup.style.left = (e.point.x + 12) + "px";
+    popup.style.top = (e.point.y - 12) + "px";
+    popup.classList.remove("hidden");
+});
+
+map.on("mouseleave", "parcels-fill", () => {
     map.getCanvas().style.cursor = "";
     popup.classList.add("hidden");
 });
