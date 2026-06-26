@@ -123,73 +123,112 @@ const SUBBASIN_COLORS = {
     "Pleasant Valley":  "#eab308",
 };
 
+function gsaLayerId(gsaName) {
+    return "gsa-" + gsaName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+}
+
 function loadSurroundingGSAs() {
     fetch("data/surrounding_gsas.geojson")
         .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
         .then(data => {
             map.addSource("surrounding-gsas", { type: "geojson", data });
 
-            // One boundary line layer per subbasin (all hidden by default)
-            Object.keys(SUBBASIN_COLORS).forEach(sb => {
-                const color = SUBBASIN_COLORS[sb];
-                const layerId = "subbasin-" + sb.toLowerCase().replace(/\s+/g, "-");
+            // Collect unique GSA names per subbasin
+            const gsasBySub = {};
+            data.features.forEach(f => {
+                const sb = f.properties.subbasin;
+                const name = f.properties.GSA_Name;
+                if (!gsasBySub[sb]) gsasBySub[sb] = new Set();
+                gsasBySub[sb].add(name);
+            });
 
-                map.addLayer({
-                    id: layerId,
-                    type: "line",
-                    source: "surrounding-gsas",
-                    filter: ["==", ["get", "subbasin"], sb],
-                    layout: { visibility: "none" },
-                    paint: {
-                        "line-color": color,
-                        "line-width": 2,
-                        "line-opacity": 0.8,
-                    },
-                });
+            // Create per-GSA layers (fill, line, label) — all hidden by default
+            Object.entries(gsasBySub).forEach(([sb, gsaSet]) => {
+                const color = SUBBASIN_COLORS[sb] || "#94a3b8";
+                gsaSet.forEach(gsaName => {
+                    const lid = gsaLayerId(gsaName);
+                    const filter = ["==", ["get", "GSA_Name"], gsaName];
 
-                map.addLayer({
-                    id: layerId + "-fill",
-                    type: "fill",
-                    source: "surrounding-gsas",
-                    filter: ["==", ["get", "subbasin"], sb],
-                    layout: { visibility: "none" },
-                    paint: {
-                        "fill-color": color,
-                        "fill-opacity": 0.06,
-                    },
-                }, layerId);
-
-                map.addLayer({
-                    id: layerId + "-labels",
-                    type: "symbol",
-                    source: "surrounding-gsas",
-                    filter: ["==", ["get", "subbasin"], sb],
-                    layout: {
-                        visibility: "none",
-                        "text-field": ["get", "GSA_Name"],
-                        "text-size": 11,
-                        "text-allow-overlap": false,
-                    },
-                    paint: {
-                        "text-color": color,
-                        "text-halo-color": "rgba(0,0,0,0.7)",
-                        "text-halo-width": 1.5,
-                    },
+                    map.addLayer({
+                        id: lid + "-fill",
+                        type: "fill",
+                        source: "surrounding-gsas",
+                        filter,
+                        layout: { visibility: "none" },
+                        paint: { "fill-color": color, "fill-opacity": 0.06 },
+                    });
+                    map.addLayer({
+                        id: lid,
+                        type: "line",
+                        source: "surrounding-gsas",
+                        filter,
+                        layout: { visibility: "none" },
+                        paint: { "line-color": color, "line-width": 2, "line-opacity": 0.8 },
+                    });
+                    map.addLayer({
+                        id: lid + "-label",
+                        type: "symbol",
+                        source: "surrounding-gsas",
+                        filter,
+                        layout: {
+                            visibility: "none",
+                            "text-field": gsaName,
+                            "text-size": 11,
+                            "text-allow-overlap": false,
+                        },
+                        paint: {
+                            "text-color": color,
+                            "text-halo-color": "rgba(0,0,0,0.7)",
+                            "text-halo-width": 1.5,
+                        },
+                    });
                 });
             });
         })
         .catch(err => console.error("Surrounding GSAs load error:", err));
 }
 
-// Subbasin toggle handlers
+// Subbasin checkbox: toggles all GSAs in the subbasin + expands/collapses list
 document.querySelectorAll("[data-subbasin]").forEach(cb => {
-    cb.addEventListener("change", () => {
+    cb.addEventListener("change", (e) => {
+        e.stopPropagation();
         const sb = cb.dataset.subbasin;
-        const layerId = "subbasin-" + sb.toLowerCase().replace(/\s+/g, "-");
         const vis = cb.checked ? "visible" : "none";
-        [layerId, layerId + "-fill", layerId + "-labels"].forEach(id => {
+        const group = document.querySelector(`[data-subbasin-group="${sb}"]`);
+
+        if (cb.checked) group.classList.add("expanded");
+        else group.classList.remove("expanded");
+
+        // Toggle all individual GSA checkboxes in this subbasin
+        group.querySelectorAll("[data-gsa]").forEach(gsaCb => {
+            gsaCb.checked = cb.checked;
+            const lid = gsaLayerId(gsaCb.dataset.gsa);
+            [lid, lid + "-fill", lid + "-label"].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            });
+        });
+    });
+});
+
+// Individual GSA checkbox toggles
+document.querySelectorAll("[data-gsa]").forEach(cb => {
+    cb.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const lid = gsaLayerId(cb.dataset.gsa);
+        const vis = cb.checked ? "visible" : "none";
+        [lid, lid + "-fill", lid + "-label"].forEach(id => {
             if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
         });
+    });
+});
+
+// Click subbasin header label to expand/collapse
+document.querySelectorAll("[data-subbasin-toggle]").forEach(header => {
+    header.addEventListener("click", (e) => {
+        if (e.target.tagName === "INPUT") return; // let checkbox handle itself
+        const sb = header.dataset.subbasinToggle;
+        const group = document.querySelector(`[data-subbasin-group="${sb}"]`);
+        group.classList.toggle("expanded");
     });
 });
 

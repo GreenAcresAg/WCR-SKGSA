@@ -137,11 +137,25 @@ body {
 }
 
 .well-type-toggles,
-.subbasin-toggles {
+.subbasin-toggles,
+.subbasin-gsas {
     margin-left: 22px;
     border-left: 2px solid #334155;
     padding-left: 12px;
     margin-top: 4px;
+}
+
+.subbasin-gsas {
+    display: none;
+    margin-bottom: 4px;
+}
+
+.subbasin-gsas.expanded {
+    display: block;
+}
+
+.subbasin-header {
+    cursor: pointer;
 }
 
 .sub-toggle { font-size: 12px; }

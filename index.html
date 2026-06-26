@@ -25,45 +25,6 @@
         <h3 class="section-title">Layers</h3>
 
         <label class="layer-toggle">
-            <input type="checkbox" data-layer="gsa-boundary" checked>
-            <span class="toggle-swatch" style="background:#f59e0b"></span>
-            South Fork Kings GSA
-        </label>
-
-        <div class="subbasin-toggles">
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Kings">
-                <span class="toggle-swatch" style="background:#06b6d4"></span>
-                Kings Subbasin
-            </label>
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Tulare Lake">
-                <span class="toggle-swatch" style="background:#8b5cf6"></span>
-                Tulare Lake Subbasin
-            </label>
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Kaweah">
-                <span class="toggle-swatch" style="background:#ec4899"></span>
-                Kaweah Subbasin
-            </label>
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Tule">
-                <span class="toggle-swatch" style="background:#14b8a6"></span>
-                Tule Subbasin
-            </label>
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Westside">
-                <span class="toggle-swatch" style="background:#f43f5e"></span>
-                Westside Subbasin
-            </label>
-            <label class="layer-toggle sub-toggle">
-                <input type="checkbox" data-subbasin="Pleasant Valley">
-                <span class="toggle-swatch" style="background:#eab308"></span>
-                Pleasant Valley Subbasin
-            </label>
-        </div>
-
-        <label class="layer-toggle">
             <input type="checkbox" data-layer="corcoran-clay" checked>
             <span class="toggle-swatch" style="background:linear-gradient(90deg,#93c5fd,#1e3a5f)"></span>
             Corcoran Clay Thickness
@@ -175,6 +136,93 @@
 
     <div class="sidebar-section sidebar-stats">
         <span id="well-count">0</span> wells shown
+    </div>
+
+    <div class="sidebar-section">
+        <h3 class="section-title">Subbasin GSAs</h3>
+
+        <label class="layer-toggle">
+            <input type="checkbox" data-layer="gsa-boundary" checked>
+            <span class="toggle-swatch" style="background:#f59e0b"></span>
+            South Fork Kings GSA
+        </label>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Kings">
+            <input type="checkbox" data-subbasin="Kings">
+            <span class="toggle-swatch" style="background:#06b6d4"></span>
+            Kings Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Kings">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Central Kings GSA" data-sb="Kings"> Central Kings GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="James GSA" data-sb="Kings"> James GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Kings River East GSA" data-sb="Kings"> Kings River East GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="McMullin Area GSA" data-sb="Kings"> McMullin Area GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="North Fork Kings GSA" data-sb="Kings"> North Fork Kings GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="North Kings GSA" data-sb="Kings"> North Kings GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="South Kings GSA" data-sb="Kings"> South Kings GSA</label>
+        </div>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Tulare Lake">
+            <input type="checkbox" data-subbasin="Tulare Lake">
+            <span class="toggle-swatch" style="background:#8b5cf6"></span>
+            Tulare Lake Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Tulare Lake">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="El Rico GSA" data-sb="Tulare Lake"> El Rico GSA</label>
+        </div>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Kaweah">
+            <input type="checkbox" data-subbasin="Kaweah">
+            <span class="toggle-swatch" style="background:#ec4899"></span>
+            Kaweah Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Kaweah">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="East Kaweah GSA" data-sb="Kaweah"> East Kaweah GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Greater Kaweah GSA" data-sb="Kaweah"> Greater Kaweah GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Mid-Kaweah GSA" data-sb="Kaweah"> Mid-Kaweah GSA</label>
+        </div>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Tule">
+            <input type="checkbox" data-subbasin="Tule">
+            <span class="toggle-swatch" style="background:#14b8a6"></span>
+            Tule Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Tule">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Alpaugh GSA" data-sb="Tule"> Alpaugh GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="County of Tulare GSA - Tule" data-sb="Tule"> County of Tulare GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Delano-Earlimart Irrigation District GSA" data-sb="Tule"> Delano-Earlimart ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Kern-Tulare Water District GSA" data-sb="Tule"> Kern-Tulare WD GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Lower Tule River Irrigation District GSA" data-sb="Tule"> Lower Tule River ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Pixley Irrigation District GSA" data-sb="Tule"> Pixley ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Porterville Irrigation District Groundwater Sustainability Agenc" data-sb="Tule"> Porterville ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Saucelito Irrigation District Groundwater Sustainability Agency" data-sb="Tule"> Saucelito ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Tea Pot Dome Water District" data-sb="Tule"> Tea Pot Dome WD</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Terra Bella Irrigation District Groundwater Sustainability Agenc" data-sb="Tule"> Terra Bella ID GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Tri-County Water Authority GSA - Tule" data-sb="Tule"> Tri-County WA GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Tule East GSA JPA" data-sb="Tule"> Tule East GSA JPA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Vandalia Water District" data-sb="Tule"> Vandalia WD</label>
+        </div>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Westside">
+            <input type="checkbox" data-subbasin="Westside">
+            <span class="toggle-swatch" style="background:#f43f5e"></span>
+            Westside Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Westside">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="County of Fresno GSA - Westside" data-sb="Westside"> County of Fresno GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Westlands Water District GSA" data-sb="Westside"> Westlands WD GSA</label>
+        </div>
+
+        <label class="layer-toggle subbasin-header" data-subbasin-toggle="Pleasant Valley">
+            <input type="checkbox" data-subbasin="Pleasant Valley">
+            <span class="toggle-swatch" style="background:#eab308"></span>
+            Pleasant Valley Subbasin
+        </label>
+        <div class="subbasin-gsas" data-subbasin-group="Pleasant Valley">
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="City of Coalinga GSA" data-sb="Pleasant Valley"> City of Coalinga GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="County of Fresno GSA - Pleasant Valley" data-sb="Pleasant Valley"> County of Fresno GSA</label>
+            <label class="layer-toggle sub-toggle"><input type="checkbox" data-gsa="Pleasant Valley GSA" data-sb="Pleasant Valley"> Pleasant Valley GSA</label>
+        </div>
     </div>
 
     <div class="sidebar-section sidebar-disclaimer">
