@@ -62,6 +62,7 @@ map = new maplibregl.Map({
                 maxzoom: 19,
             },
         },
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         layers: [
             { id: "satellite", type: "raster", source: "satellite" },
             { id: "roads", type: "raster", source: "roads", paint: { "raster-opacity": 0.8 } },
@@ -76,41 +77,15 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 map.on("load", () => {
-    loadGSA();
     loadSurroundingGSAs();
     loadCorcoranClay();
     loadCorcoranDepth();
     loadWells();
 });
 
-/* ── Load GSA boundary ────────────────────────────────── */
-
-function loadGSA() {
-    fetch("data/sfkgsa.geojson")
-        .then(r => r.json())
-        .then(data => {
-            map.addSource("gsa", { type: "geojson", data });
-            map.addLayer({
-                id: "gsa-boundary",
-                type: "line",
-                source: "gsa",
-                paint: {
-                    "line-color": "#f59e0b",
-                    "line-width": 3,
-                    "line-opacity": 0.9,
-                },
-            });
-            map.addLayer({
-                id: "gsa-fill",
-                type: "fill",
-                source: "gsa",
-                paint: {
-                    "fill-color": "#f59e0b",
-                    "fill-opacity": 0.05,
-                },
-            }, "gsa-boundary");
-        });
-}
+/* ── SFK GSA special styling ──────────────────────────── */
+const SFK_GSA_NAME = "South Fork Kings GSA";
+const SFK_COLOR = "#f59e0b";
 
 /* ── Load surrounding subbasin GSAs ──────────────────── */
 
@@ -163,28 +138,32 @@ function loadSurroundingGSAs() {
                 gsasBySub[sb].add(name);
             });
 
-            // Create per-GSA layers (fill, line, label) — all hidden by default
+            // Create per-GSA layers (fill, line, label)
+            // SFK GSA gets special styling (thicker border, amber color, visible by default)
             Object.entries(gsasBySub).forEach(([sb, gsaSet]) => {
-                const color = SUBBASIN_COLORS[sb] || "#94a3b8";
+                const sbColor = SUBBASIN_COLORS[sb] || "#94a3b8";
                 gsaSet.forEach(gsaName => {
+                    const isSFK = gsaName === SFK_GSA_NAME;
+                    const color = isSFK ? SFK_COLOR : sbColor;
                     const lid = gsaLayerId(gsaName);
                     const filter = ["==", ["get", "GSA_Name"], gsaName];
+                    const vis = isSFK ? "visible" : "none";
 
                     map.addLayer({
                         id: lid + "-fill",
                         type: "fill",
                         source: "surrounding-gsas",
                         filter,
-                        layout: { visibility: "none" },
-                        paint: { "fill-color": color, "fill-opacity": 0.06 },
+                        layout: { visibility: vis },
+                        paint: { "fill-color": color, "fill-opacity": isSFK ? 0.05 : 0.06 },
                     });
                     map.addLayer({
                         id: lid,
                         type: "line",
                         source: "surrounding-gsas",
                         filter,
-                        layout: { visibility: "none" },
-                        paint: { "line-color": color, "line-width": 2, "line-opacity": 0.8 },
+                        layout: { visibility: vis },
+                        paint: { "line-color": color, "line-width": isSFK ? 4 : 2, "line-opacity": 0.9 },
                     });
                     // Label from centroid point source
                     map.addLayer({
@@ -193,7 +172,7 @@ function loadSurroundingGSAs() {
                         source: "gsa-labels",
                         filter,
                         layout: {
-                            visibility: "none",
+                            visibility: vis,
                             "text-field": ["get", "GSA_Name"],
                             "text-size": [
                                 "interpolate", ["linear"], ["zoom"],
@@ -747,9 +726,6 @@ document.querySelectorAll("[data-layer]").forEach(cb => {
             ["corcoran-depth", "corcoran-depth-labels"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
             });
-        } else if (layerId === "gsa-boundary") {
-            if (map.getLayer("gsa-boundary")) map.setLayoutProperty("gsa-boundary", "visibility", vis);
-            if (map.getLayer("gsa-fill")) map.setLayoutProperty("gsa-fill", "visibility", vis);
         } else {
             if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", vis);
         }
