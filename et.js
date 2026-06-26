@@ -434,20 +434,29 @@ async function loadAnnualSummary(lng, lat, coordKey, acres, geom) {
 async function fetchET(lng, lat, dateStart, dateEnd, geom) {
     const params = new URLSearchParams({ start: dateStart, end: dateEnd });
 
-    if (geom && geom.type && geom.coordinates) {
+    let usePolygon = geom && geom.type && geom.coordinates;
+
+    if (usePolygon) {
         // Simplify complex polygons to stay within URL/API limits
         const simplified = simplifyGeometry(geom);
         const geomStr = JSON.stringify(simplified);
-        params.set("geom", geomStr);
-        console.log(`Fetching ET (polygon avg): ${geomStr.length} chars`);
-    } else {
-        // Point fallback
+        // Check URL length — fall back to point if too large
+        if (geomStr.length > 4000) {
+            console.warn(`Geometry too large (${geomStr.length} chars), falling back to point query`);
+            usePolygon = false;
+        } else {
+            params.set("geom", geomStr);
+            console.log(`Fetching ET (polygon avg): ${geomStr.length} chars`);
+        }
+    }
+
+    if (!usePolygon) {
         params.set("lng", lng.toFixed(6));
         params.set("lat", lat.toFixed(6));
     }
 
     const url = PROXY_URL + '?' + params.toString();
-    console.log("Fetching ET:", url.length, "chars");
+    console.log("Fetching ET:", url.length, "chars", usePolygon ? "(polygon)" : "(point)");
 
     const resp = await fetch(url);
 
@@ -458,7 +467,6 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
     }
 
     const text = await resp.text();
-    console.log("Proxy response:", text.substring(0, 300));
 
     let result;
     try {
@@ -468,8 +476,24 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
         throw new Error("Proxy returned non-JSON response");
     }
 
+    // If polygon query failed, retry with point
+    if (!result.success && usePolygon) {
+        console.warn("Polygon query failed, retrying with point:", result.data?.detail || result.status);
+        const pointParams = new URLSearchParams({
+            start: dateStart, end: dateEnd,
+            lng: lng.toFixed(6), lat: lat.toFixed(6),
+        });
+        const pointUrl = PROXY_URL + '?' + pointParams.toString();
+        const pointResp = await fetch(pointUrl);
+        const pointText = await pointResp.text();
+        try {
+            result = JSON.parse(pointText);
+        } catch (e) {
+            throw new Error("Proxy returned non-JSON response");
+        }
+    }
+
     if (!result.success) {
-        console.error("OpenET error detail:", JSON.stringify(result.data));
         const detail = result.data?.detail || result.data?.message || JSON.stringify(result.data);
         throw new Error(result.error || `OpenET API error (${result.status}): ${detail}`);
     }
