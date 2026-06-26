@@ -1,7 +1,7 @@
 /* ── OpenET Field Explorer ────────────────────────────── */
 
 // Replace with your deployed Google Apps Script proxy URL
-const PROXY_URL = 'YOUR_APPS_SCRIPT_PROXY_URL_HERE';
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbwKcSnbzf9KmIe8X09_wJqSzhZCERsz7Y9mjzCELIJGCEihkr_SzfQut77ig7CvA71R/exec';
 
 /* ── Crop colors (same as main map) ──────────────────── */
 
