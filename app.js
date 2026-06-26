@@ -82,12 +82,98 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 
 map.on("load", () => {
+    loadCrops();
     loadParcels();
     loadSurroundingGSAs();
     loadCorcoranClay();
     loadCorcoranDepth();
     loadWells();
 });
+
+/* ── Kings County Crop Boundaries (PMTiles) ──────────── */
+
+const CROP_COLORS = {
+    "Corn (Grain)":     "#eab308",
+    "Walnut":           "#65a30d",
+    "Pomegranate":      "#dc2626",
+    "Pistachio":        "#16a34a",
+    "Fallow":           "#a8a29e",
+    "Alfalfa":          "#15803d",
+    "Idle (1yr)":       "#d6d3d1",
+    "Winter Wheat/Hay": "#ca8a04",
+    "Cotton":           "#f5f5f4",
+    "Tomato":           "#ef4444",
+    "Peach/Nectarine":  "#fb923c",
+    "Wheat":            "#d97706",
+    "Pasture (Mixed/Irrigated)": "#4ade80",
+    "Plum":             "#7c3aed",
+    "Vineyard":         "#7e22ce",
+    "Cherry":           "#be123c",
+    "Citrus":           "#f59e0b",
+    "Young Perennial":  "#86efac",
+    "Apricot":          "#fdba74",
+    "Olive":            "#365314",
+    "Carrot":           "#ea580c",
+    "Celery":           "#a3e635",
+};
+const CROP_DEFAULT_COLOR = "#6b7280";
+
+function loadCrops() {
+    map.addSource("crops", {
+        type: "vector",
+        url: "pmtiles://data/kings_crops_2023.pmtiles",
+    });
+    map.addLayer({
+        id: "crops-fill",
+        type: "fill",
+        source: "crops",
+        "source-layer": "crops",
+        layout: { visibility: "none" },
+        minzoom: 10,
+        paint: {
+            "fill-color": [
+                "match", ["get", "CROP_NAME"],
+                ...Object.entries(CROP_COLORS).flat(),
+                CROP_DEFAULT_COLOR,
+            ],
+            "fill-opacity": 0.45,
+        },
+    });
+    map.addLayer({
+        id: "crops",
+        type: "line",
+        source: "crops",
+        "source-layer": "crops",
+        layout: { visibility: "none" },
+        minzoom: 12,
+        paint: {
+            "line-color": "#1e293b",
+            "line-width": 0.5,
+            "line-opacity": 0.5,
+        },
+    });
+    map.addLayer({
+        id: "crops-labels",
+        type: "symbol",
+        source: "crops",
+        "source-layer": "crops",
+        layout: {
+            visibility: "none",
+            "text-field": ["get", "CROP_NAME"],
+            "text-size": [
+                "interpolate", ["linear"], ["zoom"],
+                13, 8, 16, 11,
+            ],
+            "text-allow-overlap": false,
+        },
+        minzoom: 14,
+        paint: {
+            "text-color": "#f8fafc",
+            "text-halo-color": "rgba(0,0,0,0.8)",
+            "text-halo-width": 1.5,
+        },
+    });
+}
 
 /* ── Kings County Parcels (PMTiles) ───────────────────── */
 
@@ -789,6 +875,10 @@ document.querySelectorAll("[data-layer]").forEach(cb => {
             ["corcoran-depth", "corcoran-depth-labels"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
             });
+        } else if (layerId === "crops") {
+            ["crops", "crops-fill", "crops-labels"].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            });
         } else if (layerId === "parcels") {
             ["parcels", "parcels-fill", "parcels-labels"].forEach(id => {
                 if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
@@ -983,6 +1073,31 @@ map.on("mousemove", "parcels-fill", (e) => {
 });
 
 map.on("mouseleave", "parcels-fill", () => {
+    map.getCanvas().style.cursor = "";
+    popup.classList.add("hidden");
+});
+
+/* ── Crop hover popup ───────────────────────────────── */
+
+map.on("mousemove", "crops-fill", (e) => {
+    if (!e.features || !e.features.length) return;
+    map.getCanvas().style.cursor = "pointer";
+    const p = e.features[0].properties;
+    const cropName = p.CROP_NAME || p.MAIN_CROP || "Unknown";
+    const color = CROP_COLORS[cropName] || CROP_DEFAULT_COLOR;
+    const rows = [
+        `<div class="popup-title" style="color:${color}">${cropName}</div>`,
+        `<div class="popup-row"><span class="popup-label">Crop Code</span><span class="popup-value">${p.MAIN_CROP || "—"}</span></div>`,
+        `<div class="popup-row"><span class="popup-label">Acres</span><span class="popup-value">${p.ACRES ? Number(p.ACRES).toFixed(1) : "—"}</span></div>`,
+        p.IRR_TYP1PA && p.IRR_TYP1PA !== "*" ? `<div class="popup-row"><span class="popup-label">Irrigation</span><span class="popup-value">${p.IRR_TYP1PA}</span></div>` : "",
+    ].filter(Boolean).join("");
+    popup.innerHTML = rows;
+    popup.style.left = (e.point.x + 12) + "px";
+    popup.style.top = (e.point.y - 12) + "px";
+    popup.classList.remove("hidden");
+});
+
+map.on("mouseleave", "crops-fill", () => {
     map.getCanvas().style.cursor = "";
     popup.classList.add("hidden");
 });
