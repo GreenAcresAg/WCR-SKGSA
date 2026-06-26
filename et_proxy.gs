@@ -35,13 +35,23 @@ function doGet(e) {
     var endpoint, body;
 
     if (geom) {
-      // Polygon mode — field-averaged ET
+      // Polygon mode — field-averaged ET using GeoJSON geometry
       var geometry = JSON.parse(geom);
+      // OpenET requires a FeatureCollection; wrap if needed
+      var fc;
+      if (geometry.type === 'FeatureCollection') {
+        fc = geometry;
+      } else if (geometry.type === 'Feature') {
+        fc = { type: 'FeatureCollection', features: [geometry] };
+      } else {
+        // Raw geometry object (Polygon/MultiPolygon)
+        fc = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: geometry }] };
+      }
       endpoint = '/raster/timeseries/polygon';
       body = {
         date_range: [start, end],
         interval: 'monthly',
-        geometry: geometry,
+        geojson: fc,
         model: 'Ensemble',
         variable: 'ET',
         reference_et: 'cimis',

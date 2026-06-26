@@ -1,7 +1,7 @@
 /* ── OpenET Field Explorer ────────────────────────────── */
 
 // Replace with your deployed Google Apps Script proxy URL
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzTA4Ef7X8Li4LoIJjPi1oIU78JscnTAuj6hefFWtTIRA63kWc7gXql9PCi57_-9FHs/exec';
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzcUaLLQ7bUtBZrvs66jTr8bNRiQufDksl8KE6ilDMAd8Kr-a-zgHuE82ZHPPbIWE5h/exec';
 
 /* ── Unit conversions ────────────────────────────────── */
 const MM_TO_IN = 0.0393701;
@@ -374,7 +374,9 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
     }
 
     if (!result.success) {
-        throw new Error(result.error || `OpenET API error (status ${result.status})`);
+        console.error("OpenET error detail:", JSON.stringify(result.data));
+        const detail = result.data?.detail || result.data?.message || JSON.stringify(result.data);
+        throw new Error(result.error || `OpenET API error (${result.status}): ${detail}`);
     }
 
     return result.data;
