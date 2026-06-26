@@ -242,30 +242,43 @@ async function loadAnnualSummary(lng, lat, coordKey, acres) {
     const allMonthly = {};
     let hasData = false;
 
+    // Check if we already have all years cached
+    const uncachedYears = years.filter(y => !monthlyCache[`${coordKey}:${y}`]);
     for (const year of years) {
         const cacheKey = `${coordKey}:${year}`;
         if (monthlyCache[cacheKey]) {
             allMonthly[year] = monthlyCache[cacheKey];
             annualTotals[year] = monthlyCache[cacheKey].reduce((s, dd) => s + (dd.et || 0), 0);
             hasData = true;
-            continue;
         }
+    }
 
+    // Single API call for all uncached years
+    if (uncachedYears.length > 0) {
         try {
-            const raw = await fetchET(lng, lat, `${year}-01-01`, `${year}-12-31`);
+            const raw = await fetchET(lng, lat, `${startYear}-01-01`, `${currentYear}-12-31`);
             if (raw && Array.isArray(raw) && raw.length > 0) {
-                // Normalize: OpenET may return "ET" or "et" key
-                const data = raw.map(d => ({
+                // Normalize and group by year
+                const normalized = raw.map(d => ({
                     time: d.time || d.date,
                     et: d.et ?? d.ET ?? d.value ?? 0,
                 }));
-                monthlyCache[cacheKey] = data;
-                allMonthly[year] = data;
-                annualTotals[year] = data.reduce((s, d) => s + (d.et || 0), 0);
-                hasData = true;
+                for (const d of normalized) {
+                    const year = new Date(d.time).getFullYear();
+                    if (!allMonthly[year]) allMonthly[year] = [];
+                    allMonthly[year].push(d);
+                }
+                // Cache each year and compute totals
+                for (const year of years) {
+                    if (allMonthly[year] && allMonthly[year].length > 0) {
+                        monthlyCache[`${coordKey}:${year}`] = allMonthly[year];
+                        annualTotals[year] = allMonthly[year].reduce((s, d) => s + (d.et || 0), 0);
+                        hasData = true;
+                    }
+                }
             }
         } catch (err) {
-            console.error(`ET fetch failed for ${year}:`, err);
+            console.error("ET fetch failed:", err);
             summaryEl.innerHTML = `<div class="error-msg">Error loading ET data: ${err.message}</div>`;
             return;
         }
