@@ -19,6 +19,10 @@ const CROP_COLORS = {
     "Vineyard": "#7e22ce", "Cherry": "#be123c", "Citrus": "#f59e0b",
     "Young Perennial": "#86efac", "Apricot": "#fdba74", "Olive": "#365314",
     "Carrot": "#ea580c", "Celery": "#a3e635",
+    "Almond": "#a3e635", "Safflower": "#eab308", "Solar Farm": "#64748b",
+    "Onion/Garlic": "#c084fc", "Clover": "#22c55e", "Pecan": "#84cc16",
+    "Sudangrass": "#65a30d", "Idle/Fallow": "#a8a29e",
+    "Pasture (Irrigated)": "#4ade80",
 };
 const CROP_DEFAULT_COLOR = "#6b7280";
 
@@ -82,14 +86,14 @@ map.on("load", () => {
             });
         });
 
-    // Crop boundaries
+    // Crop boundaries — 2024 (displayed)
     map.addSource("crops", {
         type: "vector",
-        url: "pmtiles://data/kings_crops_2023.pmtiles",
+        url: "pmtiles://data/kings_crops_2024.pmtiles",
     });
 
     map.addLayer({
-        id: "crops-fill", type: "fill", source: "crops", "source-layer": "crops",
+        id: "crops-fill", type: "fill", source: "crops", "source-layer": "crops2024",
         minzoom: 10,
         paint: {
             "fill-color": [
@@ -102,13 +106,13 @@ map.on("load", () => {
     });
 
     map.addLayer({
-        id: "crops-outline", type: "line", source: "crops", "source-layer": "crops",
+        id: "crops-outline", type: "line", source: "crops", "source-layer": "crops2024",
         minzoom: 12,
         paint: { "line-color": "#1e293b", "line-width": 0.5, "line-opacity": 0.5 },
     });
 
     map.addLayer({
-        id: "crops-labels", type: "symbol", source: "crops", "source-layer": "crops",
+        id: "crops-labels", type: "symbol", source: "crops", "source-layer": "crops2024",
         minzoom: 14,
         layout: {
             "text-field": ["get", "CROP_NAME"],
@@ -120,6 +124,18 @@ map.on("load", () => {
             "text-halo-color": "rgba(0,0,0,0.8)",
             "text-halo-width": 1.5,
         },
+    });
+
+    // Crop boundaries — 2023 (hidden, for label lookup only)
+    map.addSource("crops2023", {
+        type: "vector",
+        url: "pmtiles://data/kings_crops_2023.pmtiles",
+    });
+
+    map.addLayer({
+        id: "crops2023-fill", type: "fill", source: "crops2023", "source-layer": "crops",
+        minzoom: 10,
+        paint: { "fill-color": "transparent", "fill-opacity": 0 },
     });
 
     // Click marker for selected point
@@ -138,6 +154,17 @@ map.on("load", () => {
     });
 });
 
+/* ── Crop year lookup helper ────────────────────────── */
+
+function getCrop2023AtPoint(point) {
+    const features = map.queryRenderedFeatures(point, { layers: ["crops2023-fill"] });
+    if (features && features.length > 0) {
+        const p = features[0].properties;
+        return p.CROP_NAME || p.MAIN_CROP || null;
+    }
+    return null;
+}
+
 /* ── Hover popup ─────────────────────────────────────── */
 
 const popup = document.getElementById("popup");
@@ -146,9 +173,13 @@ map.on("mousemove", "crops-fill", (e) => {
     if (!e.features || !e.features.length) return;
     map.getCanvas().style.cursor = "pointer";
     const p = e.features[0].properties;
-    const cropName = p.CROP_NAME || p.MAIN_CROP || "Unknown";
+    const crop2024 = p.CROP_NAME || p.MAIN_CROP || "Unknown";
+    const crop2023 = getCrop2023AtPoint(e.point);
+    const changed = crop2023 && crop2023 !== crop2024;
     popup.innerHTML = `
-        <div class="popup-title">${cropName}</div>
+        <div class="popup-title">${crop2024}</div>
+        <div class="popup-row"><span class="popup-label">2024</span><span class="popup-value">${crop2024}</span></div>
+        ${crop2023 ? `<div class="popup-row"><span class="popup-label">2023</span><span class="popup-value" style="${changed ? 'color:#fbbf24' : ''}">${crop2023}${changed ? ' ⚠' : ''}</span></div>` : ''}
         <div class="popup-row"><span class="popup-label">Acres</span><span class="popup-value">${p.ACRES ? Number(p.ACRES).toFixed(1) : "—"}</span></div>
         <div style="font-size:11px;color:#64748b;margin-top:4px">Click for ET data</div>
     `;
@@ -168,9 +199,12 @@ map.on("click", "crops-fill", async (e) => {
     if (!e.features || !e.features.length) return;
     const feature = e.features[0];
     const p = feature.properties;
-    const cropName = p.CROP_NAME || p.MAIN_CROP || "Unknown";
+    const crop2024 = p.CROP_NAME || p.MAIN_CROP || "Unknown";
+    const crop2023 = getCrop2023AtPoint(e.point);
+    const cropName = crop2024;
     const color = CROP_COLORS[cropName] || CROP_DEFAULT_COLOR;
     const acres = p.ACRES ? Number(p.ACRES) : 0;
+    const changed = crop2023 && crop2023 !== crop2024;
 
     // Use click point for display, field geometry for ET query
     const lng = e.lngLat.lng;
@@ -194,9 +228,13 @@ map.on("click", "crops-fill", async (e) => {
     fieldInfo.classList.remove("empty");
     fieldInfo.innerHTML = `
         <div class="field-info-row">
-            <span class="field-info-label">Crop</span>
-            <span class="field-crop-badge" style="background:${color}20;color:${color}">${cropName}</span>
+            <span class="field-info-label">Crop (2024)</span>
+            <span class="field-crop-badge" style="background:${color}20;color:${color}">${crop2024}</span>
         </div>
+        ${crop2023 ? `<div class="field-info-row">
+            <span class="field-info-label">Crop (2023)</span>
+            <span class="field-info-value" style="${changed ? 'color:#fbbf24' : ''}">${crop2023}${changed ? ' (changed)' : ''}</span>
+        </div>` : ''}
         <div class="field-info-row">
             <span class="field-info-label">Acres</span>
             <span class="field-info-value">${acres ? acres.toFixed(1) : "—"}</span>

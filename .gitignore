@@ -1,5 +1,6 @@
 node_modules/
 data/kings_parcels.geojson
 data/kings_crops_2023.geojson
+data/kings_crops_2024.geojson
 data/tcwa_tulare_corrected.geojson
 data/tri_county_gsa.geojson
