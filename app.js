@@ -127,11 +127,32 @@ function gsaLayerId(gsaName) {
     return "gsa-" + gsaName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
 }
 
+// Compute centroid of a polygon feature
+function polygonCentroid(feature) {
+    const coords = feature.geometry.type === "MultiPolygon"
+        ? feature.geometry.coordinates[0][0]
+        : feature.geometry.coordinates[0];
+    let sumLng = 0, sumLat = 0;
+    coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
+    return [sumLng / coords.length, sumLat / coords.length];
+}
+
 function loadSurroundingGSAs() {
     fetch("data/surrounding_gsas.geojson")
         .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
         .then(data => {
             map.addSource("surrounding-gsas", { type: "geojson", data });
+
+            // Build centroid point source for labels
+            const labelFeatures = data.features.map(f => ({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: polygonCentroid(f) },
+                properties: { ...f.properties },
+            }));
+            map.addSource("gsa-labels", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: labelFeatures },
+            });
 
             // Collect unique GSA names per subbasin
             const gsasBySub = {};
@@ -165,24 +186,25 @@ function loadSurroundingGSAs() {
                         layout: { visibility: "none" },
                         paint: { "line-color": color, "line-width": 2, "line-opacity": 0.8 },
                     });
+                    // Label from centroid point source
                     map.addLayer({
                         id: lid + "-label",
                         type: "symbol",
-                        source: "surrounding-gsas",
+                        source: "gsa-labels",
                         filter,
                         layout: {
                             visibility: "none",
                             "text-field": ["get", "GSA_Name"],
                             "text-size": [
                                 "interpolate", ["linear"], ["zoom"],
-                                8, 9, 12, 12, 15, 14,
+                                8, 10, 12, 13, 15, 15,
                             ],
                             "text-allow-overlap": true,
                             "text-ignore-placement": true,
                         },
                         paint: {
                             "text-color": color,
-                            "text-halo-color": "rgba(0,0,0,0.8)",
+                            "text-halo-color": "rgba(0,0,0,0.9)",
                             "text-halo-width": 2,
                         },
                     });
