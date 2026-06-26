@@ -182,7 +182,7 @@ function loadSurroundingGSAs() {
                             "text-ignore-placement": true,
                         },
                         paint: {
-                            "text-color": color,
+                            "text-color": "#facc15",
                             "text-halo-color": "rgba(0,0,0,0.9)",
                             "text-halo-width": 2,
                         },
