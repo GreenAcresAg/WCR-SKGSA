@@ -1,7 +1,7 @@
 /* ── OpenET Field Explorer ────────────────────────────── */
 
 // Replace with your deployed Google Apps Script proxy URL
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzX-IT4GPRJlsmZtRbpk-xRAQ9qeTnCejsod7n46Vdxytfcqph3JW0PcYzoqOHGlqB-/exec';
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzTA4Ef7X8Li4LoIJjPi1oIU78JscnTAuj6hefFWtTIRA63kWc7gXql9PCi57_-9FHs/exec';
 
 /* ── Unit conversions ────────────────────────────────── */
 const MM_TO_IN = 0.0393701;
@@ -172,12 +172,13 @@ map.on("click", "crops-fill", async (e) => {
     const color = CROP_COLORS[cropName] || CROP_DEFAULT_COLOR;
     const acres = p.ACRES ? Number(p.ACRES) : 0;
 
-    // Use click point as the query coordinate
+    // Use click point for display, field geometry for ET query
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
+    const geom = feature.geometry;
     const coordKey = `${lng.toFixed(6)},${lat.toFixed(6)}`;
 
-    selectedField = { lng, lat, cropName, color, acres, coordKey };
+    selectedField = { lng, lat, cropName, color, acres, coordKey, geom };
 
     // Show selected point marker (not polygon — avoids tile clipping artifacts)
     map.getSource("selected-point").setData({
@@ -219,12 +220,12 @@ map.on("click", "crops-fill", async (e) => {
     }
 
     // Load annual summary
-    await loadAnnualSummary(lng, lat, coordKey, acres);
+    await loadAnnualSummary(lng, lat, coordKey, acres, geom);
 });
 
 /* ── Load annual ET summary ──────────────────────────── */
 
-async function loadAnnualSummary(lng, lat, coordKey, acres) {
+async function loadAnnualSummary(lng, lat, coordKey, acres, geom) {
     const summaryEl = document.getElementById("annual-summary");
     const yearSelector = document.getElementById("year-selector");
     const currentYear = new Date().getFullYear();
@@ -256,7 +257,7 @@ async function loadAnnualSummary(lng, lat, coordKey, acres) {
     // Single API call for all uncached years
     if (uncachedYears.length > 0) {
         try {
-            const raw = await fetchET(lng, lat, `${startYear}-01-01`, `${currentYear}-12-31`);
+            const raw = await fetchET(lng, lat, `${startYear}-01-01`, `${currentYear}-12-31`, geom);
             if (raw && Array.isArray(raw) && raw.length > 0) {
                 // Normalize and group by year
                 const normalized = raw.map(d => ({
@@ -337,16 +338,21 @@ async function loadAnnualSummary(lng, lat, coordKey, acres) {
 
 /* ── Fetch ET from proxy ─────────────────────────────── */
 
-async function fetchET(lng, lat, dateStart, dateEnd) {
-    const params = new URLSearchParams({
-        lng: lng.toFixed(6),
-        lat: lat.toFixed(6),
-        start: dateStart,
-        end: dateEnd,
-    });
+async function fetchET(lng, lat, dateStart, dateEnd, geom) {
+    const params = new URLSearchParams({ start: dateStart, end: dateEnd });
+
+    if (geom && geom.type && geom.coordinates) {
+        // Polygon query — field-averaged ET
+        params.set("geom", JSON.stringify(geom));
+        console.log("Fetching ET (polygon avg):", geom.type, "vertices:", JSON.stringify(geom.coordinates).length);
+    } else {
+        // Point fallback
+        params.set("lng", lng.toFixed(6));
+        params.set("lat", lat.toFixed(6));
+    }
 
     const url = PROXY_URL + '?' + params.toString();
-    console.log("Fetching ET:", url);
+    console.log("Fetching ET:", url.substring(0, 150) + "...");
 
     const resp = await fetch(url);
 

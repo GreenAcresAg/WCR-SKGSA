@@ -11,39 +11,60 @@
  *    - Who has access: Anyone
  * 5. Copy the deployment URL into et.js (PROXY_URL)
  *
- * Usage (GET):
- *   ?lng=-119.81&lat=36.28&start=2023-01-01&end=2023-12-31
+ * Supports two modes:
+ *   GET  ?lng=&lat=&start=&end=          → point query
+ *   GET  ?geom=<GeoJSON>&start=&end=     → polygon query (field average)
  */
 
-const OPENET_API_KEY = 'YOUR_OPENET_API_KEY_HERE';
-const OPENET_BASE = 'https://openet-api.org';
+var OPENET_API_KEY = 'YOUR_OPENET_API_KEY_HERE';
+var OPENET_BASE = 'https://openet-api.org';
 
 function doGet(e) {
   try {
+    var geom = e.parameter.geom;
     var lng = e.parameter.lng;
     var lat = e.parameter.lat;
     var start = e.parameter.start;
     var end = e.parameter.end;
 
     // Status check if no params
-    if (!lng || !lat) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'ok', message: 'OpenET proxy running. Use ?lng=&lat=&start=&end=' }))
-        .setMimeType(ContentService.MimeType.JSON);
+    if (!start && !geom && !lng) {
+      return jsonOut({ status: 'ok', message: 'OpenET proxy running.' });
     }
 
-    var body = {
-      date_range: [start, end],
-      interval: 'monthly',
-      geometry: [parseFloat(lng), parseFloat(lat)],
-      model: 'Ensemble',
-      variable: 'ET',
-      reference_et: 'cimis',
-      units: 'mm',
-      file_format: 'JSON'
-    };
+    var endpoint, body;
 
-    var response = UrlFetchApp.fetch(OPENET_BASE + '/raster/timeseries/point', {
+    if (geom) {
+      // Polygon mode — field-averaged ET
+      var geometry = JSON.parse(geom);
+      endpoint = '/raster/timeseries/polygon';
+      body = {
+        date_range: [start, end],
+        interval: 'monthly',
+        geometry: geometry,
+        model: 'Ensemble',
+        variable: 'ET',
+        reference_et: 'cimis',
+        units: 'mm',
+        file_format: 'JSON',
+        reducer: 'mean'
+      };
+    } else {
+      // Point mode
+      endpoint = '/raster/timeseries/point';
+      body = {
+        date_range: [start, end],
+        interval: 'monthly',
+        geometry: [parseFloat(lng), parseFloat(lat)],
+        model: 'Ensemble',
+        variable: 'ET',
+        reference_et: 'cimis',
+        units: 'mm',
+        file_format: 'JSON'
+      };
+    }
+
+    var response = UrlFetchApp.fetch(OPENET_BASE + endpoint, {
       method: 'post',
       contentType: 'application/json',
       headers: {
@@ -57,16 +78,18 @@ function doGet(e) {
     var status = response.getResponseCode();
     var text = response.getContentText();
 
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        success: status >= 200 && status < 300,
-        status: status,
-        data: JSON.parse(text)
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonOut({
+      success: status >= 200 && status < 300,
+      status: status,
+      data: JSON.parse(text)
+    });
   } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ success: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonOut({ success: false, error: err.message });
   }
+}
+
+function jsonOut(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
