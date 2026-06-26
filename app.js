@@ -115,6 +115,15 @@ const CROP_COLORS = {
     "Olive":            "#365314",
     "Carrot":           "#ea580c",
     "Celery":           "#a3e635",
+    "Almond":           "#a3e635",
+    "Safflower":        "#eab308",
+    "Solar Farm":       "#64748b",
+    "Onion/Garlic":     "#c084fc",
+    "Clover":           "#22c55e",
+    "Pecan":            "#84cc16",
+    "Sudangrass":       "#65a30d",
+    "Idle/Fallow":      "#a8a29e",
+    "Pasture (Irrigated)": "#4ade80",
 };
 const CROP_DEFAULT_COLOR = "#6b7280";
 
