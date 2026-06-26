@@ -10,49 +10,58 @@
  *    - Execute as: Me
  *    - Who has access: Anyone
  * 5. Copy the deployment URL into et.js (PROXY_URL)
+ *
+ * Usage (GET):
+ *   ?lng=-119.81&lat=36.28&start=2023-01-01&end=2023-12-31
  */
 
 const OPENET_API_KEY = 'YOUR_OPENET_API_KEY_HERE';
 const OPENET_BASE = 'https://openet-api.org';
 
-function doPost(e) {
+function doGet(e) {
   try {
-    const payload = JSON.parse(e.postData.contents);
-    const endpoint = payload.endpoint; // e.g. "/raster/timeseries/point"
-    const body = payload.body;         // the actual OpenET request body
+    var lng = e.parameter.lng;
+    var lat = e.parameter.lat;
+    var start = e.parameter.start;
+    var end = e.parameter.end;
 
-    if (!endpoint || !body) {
-      throw new Error('Missing endpoint or body');
+    // Status check if no params
+    if (!lng || !lat) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', message: 'OpenET proxy running. Use ?lng=&lat=&start=&end=' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Only allow specific endpoints
-    const allowed = [
-      '/raster/timeseries/point',
-      '/raster/timeseries/polygon',
-    ];
-    if (allowed.indexOf(endpoint) === -1) {
-      throw new Error('Endpoint not allowed: ' + endpoint);
-    }
+    var body = {
+      date_range: [start, end],
+      interval: 'monthly',
+      geometry: [parseFloat(lng), parseFloat(lat)],
+      model: 'Ensemble',
+      variable: 'ET',
+      reference_et: 'cimis',
+      units: 'mm',
+      file_format: 'JSON'
+    };
 
-    const response = UrlFetchApp.fetch(OPENET_BASE + endpoint, {
+    var response = UrlFetchApp.fetch(OPENET_BASE + '/raster/timeseries/point', {
       method: 'post',
       contentType: 'application/json',
       headers: {
         'Authorization': OPENET_API_KEY,
-        'accept': 'application/json',
+        'accept': 'application/json'
       },
       payload: JSON.stringify(body),
-      muteHttpExceptions: true,
+      muteHttpExceptions: true
     });
 
-    const status = response.getResponseCode();
-    const text = response.getContentText();
+    var status = response.getResponseCode();
+    var text = response.getContentText();
 
     return ContentService
       .createTextOutput(JSON.stringify({
         success: status >= 200 && status < 300,
         status: status,
-        data: JSON.parse(text),
+        data: JSON.parse(text)
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -60,10 +69,4 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-}
-
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', message: 'OpenET proxy is running. Use POST.' }))
-    .setMimeType(ContentService.MimeType.JSON);
 }

@@ -1,7 +1,12 @@
 /* ── OpenET Field Explorer ────────────────────────────── */
 
 // Replace with your deployed Google Apps Script proxy URL
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbwKcSnbzf9KmIe8X09_wJqSzhZCERsz7Y9mjzCELIJGCEihkr_SzfQut77ig7CvA71R/exec';
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzX-IT4GPRJlsmZtRbpk-xRAQ9qeTnCejsod7n46Vdxytfcqph3JW0PcYzoqOHGlqB-/exec';
+
+/* ── Unit conversions ────────────────────────────────── */
+const MM_TO_IN = 0.0393701;
+function mmToIn(mm) { return mm * MM_TO_IN; }
+function etAcreFeet(etInches, acres) { return (etInches * acres) / 12; }
 
 /* ── Crop colors (same as main map) ──────────────────── */
 
@@ -21,7 +26,6 @@ const CROP_DEFAULT_COLOR = "#6b7280";
 
 let etChart = null;
 let selectedField = null;
-let annualCache = {};    // key: "lng,lat" → { year: totalET }
 let monthlyCache = {};   // key: "lng,lat:year" → [{time, et}]
 
 /* ── PMTiles + Map init ──────────────────────────────── */
@@ -118,14 +122,19 @@ map.on("load", () => {
         },
     });
 
-    // Selected field highlight
-    map.addSource("selected-field", {
+    // Click marker for selected point
+    map.addSource("selected-point", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
     });
     map.addLayer({
-        id: "selected-field-outline", type: "line", source: "selected-field",
-        paint: { "line-color": "#3b82f6", "line-width": 3 },
+        id: "selected-point-ring", type: "circle", source: "selected-point",
+        paint: {
+            "circle-radius": 8,
+            "circle-color": "transparent",
+            "circle-stroke-color": "#3b82f6",
+            "circle-stroke-width": 3,
+        },
     });
 });
 
@@ -141,6 +150,7 @@ map.on("mousemove", "crops-fill", (e) => {
     popup.innerHTML = `
         <div class="popup-title">${cropName}</div>
         <div class="popup-row"><span class="popup-label">Acres</span><span class="popup-value">${p.ACRES ? Number(p.ACRES).toFixed(1) : "—"}</span></div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px">Click for ET data</div>
     `;
     popup.style.left = (e.point.x + 12) + "px";
     popup.style.top = (e.point.y - 12) + "px";
@@ -160,18 +170,22 @@ map.on("click", "crops-fill", async (e) => {
     const p = feature.properties;
     const cropName = p.CROP_NAME || p.MAIN_CROP || "Unknown";
     const color = CROP_COLORS[cropName] || CROP_DEFAULT_COLOR;
+    const acres = p.ACRES ? Number(p.ACRES) : 0;
 
-    // Compute centroid from click point (good enough for the API query)
+    // Use click point as the query coordinate
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
     const coordKey = `${lng.toFixed(6)},${lat.toFixed(6)}`;
 
-    selectedField = { lng, lat, cropName, color, acres: p.ACRES, coordKey };
+    selectedField = { lng, lat, cropName, color, acres, coordKey };
 
-    // Highlight selected field
-    map.getSource("selected-field").setData({
+    // Show selected point marker (not polygon — avoids tile clipping artifacts)
+    map.getSource("selected-point").setData({
         type: "FeatureCollection",
-        features: [feature],
+        features: [{
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [lng, lat] },
+        }],
     });
 
     // Update field info
@@ -184,7 +198,7 @@ map.on("click", "crops-fill", async (e) => {
         </div>
         <div class="field-info-row">
             <span class="field-info-label">Acres</span>
-            <span class="field-info-value">${p.ACRES ? Number(p.ACRES).toFixed(1) : "—"}</span>
+            <span class="field-info-value">${acres ? acres.toFixed(1) : "—"}</span>
         </div>
         <div class="field-info-row">
             <span class="field-info-label">Location</span>
@@ -204,62 +218,80 @@ map.on("click", "crops-fill", async (e) => {
         return;
     }
 
-    // Load annual summary (last 5 years)
-    await loadAnnualSummary(lng, lat, coordKey);
+    // Load annual summary
+    await loadAnnualSummary(lng, lat, coordKey, acres);
 });
 
 /* ── Load annual ET summary ──────────────────────────── */
 
-async function loadAnnualSummary(lng, lat, coordKey) {
+async function loadAnnualSummary(lng, lat, coordKey, acres) {
     const summaryEl = document.getElementById("annual-summary");
     const yearSelector = document.getElementById("year-selector");
     const currentYear = new Date().getFullYear();
     const startYear = 2018;
 
     summaryEl.innerHTML = `<div class="loading"><div class="spinner"></div>Loading ET data...</div>`;
+    yearSelector.style.display = "none";
+    if (etChart) { etChart.destroy(); etChart = null; }
+    document.getElementById("chart-title").textContent = "";
 
-    // Fetch 5+ years of monthly data
     const years = [];
     for (let y = startYear; y <= currentYear; y++) years.push(y);
 
     const annualTotals = {};
     const allMonthly = {};
+    let hasData = false;
 
-    // Fetch each year (or use cache)
     for (const year of years) {
         const cacheKey = `${coordKey}:${year}`;
         if (monthlyCache[cacheKey]) {
             allMonthly[year] = monthlyCache[cacheKey];
-            annualTotals[year] = monthlyCache[cacheKey].reduce((s, d) => s + (d.et || 0), 0);
+            annualTotals[year] = monthlyCache[cacheKey].reduce((s, dd) => s + (dd.et || 0), 0);
+            hasData = true;
             continue;
         }
 
         try {
-            const data = await fetchET(lng, lat, `${year}-01-01`, `${year}-12-31`);
-            if (data && Array.isArray(data)) {
+            const raw = await fetchET(lng, lat, `${year}-01-01`, `${year}-12-31`);
+            if (raw && Array.isArray(raw) && raw.length > 0) {
+                // Normalize: OpenET may return "ET" or "et" key
+                const data = raw.map(d => ({
+                    time: d.time || d.date,
+                    et: d.et ?? d.ET ?? d.value ?? 0,
+                }));
                 monthlyCache[cacheKey] = data;
                 allMonthly[year] = data;
                 annualTotals[year] = data.reduce((s, d) => s + (d.et || 0), 0);
+                hasData = true;
             }
         } catch (err) {
             console.error(`ET fetch failed for ${year}:`, err);
+            summaryEl.innerHTML = `<div class="error-msg">Error loading ET data: ${err.message}</div>`;
+            return;
         }
     }
 
-    annualCache[coordKey] = annualTotals;
+    if (!hasData) {
+        summaryEl.innerHTML = `<div class="error-msg">No ET data available for this location.</div>`;
+        return;
+    }
 
-    // Render annual summary bars
-    const maxET = Math.max(...Object.values(annualTotals), 1);
-    let html = `<div class="annual-summary-title">Annual ET Total (mm)</div>`;
-    for (const year of years.reverse()) {
-        const val = annualTotals[year];
-        if (val === undefined) continue;
-        const pct = (val / maxET * 100).toFixed(1);
+    // Render annual summary bars (in inches + acre-feet)
+    const maxET_in = Math.max(...Object.values(annualTotals).map(v => mmToIn(v)), 1);
+    let html = `<div class="annual-summary-title">Annual ET Summary</div>`;
+    const sortedYears = [...years].reverse();
+    for (const year of sortedYears) {
+        const val_mm = annualTotals[year];
+        if (val_mm === undefined) continue;
+        const val_in = mmToIn(val_mm);
+        const val_af = etAcreFeet(val_in, acres);
+        const pct = (val_in / maxET_in * 100).toFixed(1);
         html += `
             <div class="annual-row">
                 <span class="annual-year">${year}</span>
                 <div class="annual-bar-bg"><div class="annual-bar" style="width:${pct}%"></div></div>
-                <span class="annual-value">${Math.round(val)} mm</span>
+                <span class="annual-value">${val_in.toFixed(1)} in</span>
+                <span class="annual-af">${val_af.toFixed(2)} AF</span>
             </div>
         `;
     }
@@ -268,7 +300,8 @@ async function loadAnnualSummary(lng, lat, coordKey) {
     // Show year buttons
     yearSelector.style.display = "flex";
     yearSelector.innerHTML = `<label>Monthly Detail:</label>`;
-    for (const year of years.reverse()) {
+    const displayYears = [...years].reverse();
+    for (const year of displayYears) {
         if (!allMonthly[year]) continue;
         const btn = document.createElement("button");
         btn.className = "year-btn";
@@ -282,7 +315,7 @@ async function loadAnnualSummary(lng, lat, coordKey) {
     }
 
     // Auto-select most recent year with data
-    const latestYear = years.find(y => allMonthly[y]);
+    const latestYear = displayYears.find(y => allMonthly[y]);
     if (latestYear) {
         const btns = yearSelector.querySelectorAll(".year-btn");
         btns.forEach(b => { if (b.textContent == latestYear) b.click(); });
@@ -292,31 +325,37 @@ async function loadAnnualSummary(lng, lat, coordKey) {
 /* ── Fetch ET from proxy ─────────────────────────────── */
 
 async function fetchET(lng, lat, dateStart, dateEnd) {
-    const body = {
-        endpoint: "/raster/timeseries/point",
-        body: {
-            date_range: [dateStart, dateEnd],
-            interval: "monthly",
-            geometry: [lng, lat],
-            model: "Ensemble",
-            variable: "ET",
-            reference_et: "cimis",
-            units: "mm",
-            file_format: "JSON",
-        },
-    };
-
-    const resp = await fetch(PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+    const params = new URLSearchParams({
+        lng: lng.toFixed(6),
+        lat: lat.toFixed(6),
+        start: dateStart,
+        end: dateEnd,
     });
 
-    // Apps Script returns opaque response with no-cors, but let's try
-    const result = await resp.json();
+    const url = PROXY_URL + '?' + params.toString();
+    console.log("Fetching ET:", url);
+
+    const resp = await fetch(url);
+
+    if (!resp.ok) {
+        const text = await resp.text();
+        console.error("Proxy error:", resp.status, text.substring(0, 200));
+        throw new Error(`Proxy returned ${resp.status}`);
+    }
+
+    const text = await resp.text();
+    console.log("Proxy response:", text.substring(0, 300));
+
+    let result;
+    try {
+        result = JSON.parse(text);
+    } catch (e) {
+        console.error("Non-JSON response:", text.substring(0, 200));
+        throw new Error("Proxy returned non-JSON response");
+    }
 
     if (!result.success) {
-        throw new Error(result.error || `API error: ${result.status}`);
+        throw new Error(result.error || `OpenET API error (status ${result.status})`);
     }
 
     return result.data;
@@ -328,15 +367,17 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 
 function renderMonthlyChart(data, year) {
     const chartTitle = document.getElementById("chart-title");
+    const acres = selectedField ? selectedField.acres : 0;
     chartTitle.textContent = `Monthly ET — ${year}`;
 
-    // Ensure 12 months (fill missing with 0)
-    const values = new Array(12).fill(0);
+    // Ensure 12 months (fill missing with 0), convert mm → inches
+    const values_in = new Array(12).fill(0);
     data.forEach(d => {
         const month = new Date(d.time).getMonth();
-        values[month] = d.et || 0;
+        values_in[month] = mmToIn(d.et || 0);
     });
 
+    const values_af = values_in.map(v => etAcreFeet(v, acres));
     const color = selectedField ? selectedField.color : "#3b82f6";
 
     if (etChart) etChart.destroy();
@@ -347,22 +388,44 @@ function renderMonthlyChart(data, year) {
         data: {
             labels: MONTH_LABELS,
             datasets: [{
-                label: "ET (mm)",
-                data: values,
+                label: "ET (in)",
+                data: values_in,
                 backgroundColor: color + "99",
                 borderColor: color,
                 borderWidth: 1,
                 borderRadius: 4,
+                yAxisID: "y",
+            }, {
+                label: "Acre-Feet",
+                data: values_af,
+                type: "line",
+                borderColor: "#60a5fa",
+                backgroundColor: "transparent",
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: "#60a5fa",
+                tension: 0.3,
+                yAxisID: "y1",
             }],
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    labels: { color: "#94a3b8", font: { size: 11 } },
+                    position: "bottom",
+                },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `${ctx.parsed.y.toFixed(1)} mm`,
+                        label: (ctx) => {
+                            if (ctx.dataset.label === "ET (in)") {
+                                return `ET: ${ctx.parsed.y.toFixed(2)} in`;
+                            }
+                            return `Volume: ${ctx.parsed.y.toFixed(3)} AF`;
+                        },
                     },
                 },
             },
@@ -372,13 +435,24 @@ function renderMonthlyChart(data, year) {
                     ticks: { color: "#94a3b8", font: { size: 11 } },
                 },
                 y: {
+                    position: "left",
                     grid: { color: "#334155" },
                     ticks: {
-                        color: "#94a3b8",
-                        font: { size: 11 },
-                        callback: (v) => v + " mm",
+                        color: "#94a3b8", font: { size: 11 },
+                        callback: (v) => v.toFixed(1) + " in",
                     },
                     beginAtZero: true,
+                    title: { display: true, text: "ET (inches)", color: "#94a3b8", font: { size: 11 } },
+                },
+                y1: {
+                    position: "right",
+                    grid: { drawOnChartArea: false },
+                    ticks: {
+                        color: "#60a5fa", font: { size: 11 },
+                        callback: (v) => v.toFixed(2) + " AF",
+                    },
+                    beginAtZero: true,
+                    title: { display: true, text: "Acre-Feet", color: "#60a5fa", font: { size: 11 } },
                 },
             },
         },
