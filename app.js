@@ -172,14 +172,18 @@ function loadSurroundingGSAs() {
                         filter,
                         layout: {
                             visibility: "none",
-                            "text-field": gsaName,
-                            "text-size": 11,
-                            "text-allow-overlap": false,
+                            "text-field": ["get", "GSA_Name"],
+                            "text-size": [
+                                "interpolate", ["linear"], ["zoom"],
+                                8, 9, 12, 12, 15, 14,
+                            ],
+                            "text-allow-overlap": true,
+                            "text-ignore-placement": true,
                         },
                         paint: {
                             "text-color": color,
-                            "text-halo-color": "rgba(0,0,0,0.7)",
-                            "text-halo-width": 1.5,
+                            "text-halo-color": "rgba(0,0,0,0.8)",
+                            "text-halo-width": 2,
                         },
                     });
                 });
