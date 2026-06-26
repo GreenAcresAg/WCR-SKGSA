@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenET Field Explorer — SFKGSA</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* ── Map ───────────────────────────────── */
+        #map { flex: 1; height: 100vh; }
+
+        /* ── Right panel ───────────────────────── */
+        .et-panel {
+            width: 460px;
+            min-width: 460px;
+            height: 100vh;
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .et-header {
+            padding: 16px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .et-header h1 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .et-header .subtitle {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        /* ── Field info bar ────────────────────── */
+        .field-info {
+            padding: 12px 16px;
+            border-bottom: 1px solid #334155;
+            font-size: 13px;
+        }
+
+        .field-info.empty {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .field-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+
+        .field-info-label { color: #94a3b8; }
+        .field-info-value { color: #f8fafc; font-weight: 500; }
+
+        .field-crop-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* ── Year selector ─────────────────────── */
+        .year-selector {
+            padding: 10px 16px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .year-selector label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+        }
+
+        .year-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .year-btn:hover { border-color: #475569; color: #e2e8f0; }
+        .year-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+        /* ── Chart area ────────────────────────── */
+        .chart-container {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 8px;
+        }
+
+        .annual-summary {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .annual-summary-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .annual-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 13px;
+        }
+
+        .annual-year { color: #94a3b8; }
+
+        .annual-value {
+            font-weight: 700;
+            color: #f8fafc;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .annual-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            margin: 0 12px;
+        }
+
+        .annual-bar {
+            height: 100%;
+            border-radius: 3px;
+            background: #3b82f6;
+            transition: width 0.3s;
+        }
+
+        /* ── Loading / empty states ────────────── */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-msg {
+            padding: 12px 16px;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 6px;
+            color: #fca5a5;
+            font-size: 13px;
+            margin: 8px 16px;
+        }
+
+        /* ── Popup ─────────────────────────────── */
+        .map-popup {
+            position: absolute;
+            z-index: 20;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #e2e8f0;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            max-width: 250px;
+        }
+
+        .map-popup.hidden { display: none; }
+
+        .popup-title {
+            font-weight: 700;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .popup-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .popup-label { color: #94a3b8; }
+        .popup-value { color: #f1f5f9; font-weight: 500; }
+
+        /* ── Config notice ─────────────────────── */
+        .config-notice {
+            padding: 12px 16px;
+            background: rgba(234,179,8,0.1);
+            border: 1px solid rgba(234,179,8,0.3);
+            border-radius: 6px;
+            color: #fde68a;
+            font-size: 12px;
+            margin: 8px 16px;
+            line-height: 1.5;
+        }
+
+        .config-notice code {
+            background: rgba(0,0,0,0.3);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="et-panel">
+    <div class="et-header">
+        <h1>OpenET Field Explorer</h1>
+        <div class="subtitle">Click a crop field to view ET data (2000&ndash;present)</div>
+    </div>
+
+    <div id="field-info" class="field-info empty">
+        Click a crop field on the map to get started
+    </div>
+
+    <div id="year-selector" class="year-selector" style="display:none">
+        <label>Years:</label>
+    </div>
+
+    <div class="chart-container" id="chart-container">
+        <div id="annual-summary"></div>
+        <div class="chart-wrapper">
+            <div class="chart-title" id="chart-title"></div>
+            <canvas id="et-chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div id="popup" class="map-popup hidden"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="et.js"></script>
+</body>
+</html>
