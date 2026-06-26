@@ -8,6 +8,61 @@ const MM_TO_IN = 0.0393701;
 function mmToIn(mm) { return mm * MM_TO_IN; }
 function etAcreFeet(etInches, acres) { return (etInches * acres) / 12; }
 
+/* ── Polygon simplification (Douglas-Peucker) ────────── */
+const MAX_POLYGON_VERTICES = 80;
+
+function perpDist(pt, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.sqrt((pt[0] - a[0]) ** 2 + (pt[1] - a[1]) ** 2);
+    const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / len2));
+    const px = a[0] + t * dx, py = a[1] + t * dy;
+    return Math.sqrt((pt[0] - px) ** 2 + (pt[1] - py) ** 2);
+}
+
+function dpSimplify(ring, epsilon) {
+    if (ring.length <= 2) return ring;
+    let maxDist = 0, maxIdx = 0;
+    for (let i = 1; i < ring.length - 1; i++) {
+        const d = perpDist(ring[i], ring[0], ring[ring.length - 1]);
+        if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+    if (maxDist > epsilon) {
+        const left = dpSimplify(ring.slice(0, maxIdx + 1), epsilon);
+        const right = dpSimplify(ring.slice(maxIdx), epsilon);
+        return left.slice(0, -1).concat(right);
+    }
+    return [ring[0], ring[ring.length - 1]];
+}
+
+function simplifyGeometry(geom) {
+    if (!geom || !geom.coordinates) return geom;
+    const simplifyRing = (ring) => {
+        if (ring.length <= MAX_POLYGON_VERTICES) return ring;
+        // Start with small epsilon, increase until under limit
+        let eps = 0.00001;
+        let result = ring;
+        while (result.length > MAX_POLYGON_VERTICES && eps < 0.01) {
+            result = dpSimplify(ring, eps);
+            eps *= 2;
+        }
+        // Ensure ring is closed
+        if (result.length > 2 && (result[0][0] !== result[result.length-1][0] || result[0][1] !== result[result.length-1][1])) {
+            result.push(result[0]);
+        }
+        console.log(`Simplified ring: ${ring.length} → ${result.length} vertices (eps=${eps/2})`);
+        return result;
+    };
+
+    const copy = JSON.parse(JSON.stringify(geom));
+    if (copy.type === "Polygon") {
+        copy.coordinates = copy.coordinates.map(simplifyRing);
+    } else if (copy.type === "MultiPolygon") {
+        copy.coordinates = copy.coordinates.map(poly => poly.map(simplifyRing));
+    }
+    return copy;
+}
+
 /* ── Crop colors (same as main map) ──────────────────── */
 
 const CROP_COLORS = {
@@ -380,9 +435,11 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
     const params = new URLSearchParams({ start: dateStart, end: dateEnd });
 
     if (geom && geom.type && geom.coordinates) {
-        // Polygon query — field-averaged ET
-        params.set("geom", JSON.stringify(geom));
-        console.log("Fetching ET (polygon avg):", geom.type, "vertices:", JSON.stringify(geom.coordinates).length);
+        // Simplify complex polygons to stay within URL/API limits
+        const simplified = simplifyGeometry(geom);
+        const geomStr = JSON.stringify(simplified);
+        params.set("geom", geomStr);
+        console.log(`Fetching ET (polygon avg): ${geomStr.length} chars`);
     } else {
         // Point fallback
         params.set("lng", lng.toFixed(6));
@@ -390,7 +447,7 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
     }
 
     const url = PROXY_URL + '?' + params.toString();
-    console.log("Fetching ET:", url.substring(0, 150) + "...");
+    console.log("Fetching ET:", url.length, "chars");
 
     const resp = await fetch(url);
 
