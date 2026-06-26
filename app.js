@@ -230,7 +230,10 @@ document.querySelectorAll("[data-subbasin]").forEach(cb => {
             gsaCb.checked = cb.checked;
             const lid = gsaLayerId(gsaCb.dataset.gsa);
             [lid, lid + "-fill", lid + "-label"].forEach(id => {
-                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+                if (map.getLayer(id)) {
+                    map.setLayoutProperty(id, "visibility", vis);
+                    if (vis === "visible") map.moveLayer(id);
+                }
             });
         });
     });
@@ -243,7 +246,10 @@ document.querySelectorAll("[data-gsa]").forEach(cb => {
         const lid = gsaLayerId(cb.dataset.gsa);
         const vis = cb.checked ? "visible" : "none";
         [lid, lid + "-fill", lid + "-label"].forEach(id => {
-            if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+            if (map.getLayer(id)) {
+                map.setLayoutProperty(id, "visibility", vis);
+                if (vis === "visible") map.moveLayer(id);
+            }
         });
     });
 });
