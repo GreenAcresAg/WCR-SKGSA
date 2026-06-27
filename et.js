@@ -1,7 +1,7 @@
 /* ── OpenET Field Explorer ────────────────────────────── */
 
 // Replace with your deployed Google Apps Script proxy URL
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbyqz3e4HqiT6XBqMQsv20YoNAFK3CI32nZj5hPN2almgcHKBYMCeVreOt0ITLzU9Pmt/exec';
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzAYl1QRgHS6_5a2mU8-IKVOQaeUjmH1hYXj6GjwxtZFoiUDA1Y6g844q7sMpENbVvo/exec';
 
 /* ── Unit conversions ────────────────────────────────── */
 const MM_TO_IN = 0.0393701;
