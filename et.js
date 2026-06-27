@@ -81,6 +81,43 @@ const CROP_COLORS = {
 };
 const CROP_DEFAULT_COLOR = "#6b7280";
 
+/* ── LandIQ Raster ET lookup ────────────────────────── */
+let zonalLookup = null;  // centroid key → {c, a, ann, m}
+
+fetch("data/zonal_et_lookup.json")
+    .then(r => r.json())
+    .then(data => {
+        zonalLookup = data;
+        console.log(`Loaded zonal ET lookup: ${Object.keys(data).length} fields`);
+    })
+    .catch(err => console.warn("Zonal ET lookup not available:", err));
+
+function findZonalData(geom) {
+    if (!zonalLookup || !geom) return null;
+    // Compute centroid of outer ring
+    let ring;
+    if (geom.type === "Polygon") ring = geom.coordinates[0];
+    else if (geom.type === "MultiPolygon") {
+        ring = geom.coordinates.reduce((a, b) => a[0].length > b[0].length ? a : b)[0];
+    } else return null;
+
+    const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+    const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+    const key = `${cx.toFixed(5)},${cy.toFixed(5)}`;
+
+    // Exact match first
+    if (zonalLookup[key]) return zonalLookup[key];
+
+    // Nearest within 0.001° (~100m)
+    let best = null, bestDist = 0.001;
+    for (const k of Object.keys(zonalLookup)) {
+        const [kx, ky] = k.split(",").map(Number);
+        const d = Math.sqrt((cx - kx) ** 2 + (cy - ky) ** 2);
+        if (d < bestDist) { bestDist = d; best = zonalLookup[k]; }
+    }
+    return best;
+}
+
 /* ── State ────────────────────────────────────────────── */
 
 let etChart = null;
@@ -322,110 +359,150 @@ async function loadAnnualSummary(lng, lat, coordKey, acres, geom) {
     const summaryEl = document.getElementById("annual-summary");
     const yearSelector = document.getElementById("year-selector");
     const currentYear = new Date().getFullYear();
-    const startYear = 2018;
+    const currentMonth = new Date().getMonth();
+    const currentWY = currentMonth >= 9 ? currentYear + 1 : currentYear;
+    const startWY = 2019;  // WY 2019 = Oct 2018 – Sep 2019
 
     summaryEl.innerHTML = `<div class="loading"><div class="spinner"></div>Loading ET data...</div>`;
     yearSelector.style.display = "none";
     if (etChart) { etChart.destroy(); etChart = null; }
     document.getElementById("chart-title").textContent = "";
 
-    const years = [];
-    for (let y = startYear; y <= currentYear; y++) years.push(y);
+    const waterYears = [];
+    for (let wy = startWY; wy <= currentWY; wy++) waterYears.push(wy);
 
-    const annualTotals = {};
-    const allMonthly = {};
+    const annualTotals = {};   // wy → total ET mm
+    const allMonthly = {};     // wy → [{time, et, calMonth}]
     let hasData = false;
 
-    // Check if we already have all years cached
-    const uncachedYears = years.filter(y => !monthlyCache[`${coordKey}:${y}`]);
-    for (const year of years) {
-        const cacheKey = `${coordKey}:${year}`;
+    // Check cache (keyed by water year)
+    const uncachedWYs = waterYears.filter(wy => !monthlyCache[`${coordKey}:wy${wy}`]);
+    for (const wy of waterYears) {
+        const cacheKey = `${coordKey}:wy${wy}`;
         if (monthlyCache[cacheKey]) {
-            allMonthly[year] = monthlyCache[cacheKey];
-            annualTotals[year] = monthlyCache[cacheKey].reduce((s, dd) => s + (dd.et || 0), 0);
+            allMonthly[wy] = monthlyCache[cacheKey];
+            annualTotals[wy] = monthlyCache[cacheKey].reduce((s, dd) => s + (dd.et || 0), 0);
             hasData = true;
         }
     }
 
-    // Single API call for all uncached years
-    if (uncachedYears.length > 0) {
+    // Single API call for full date range
+    if (uncachedWYs.length > 0) {
         try {
-            const raw = await fetchET(lng, lat, `${startYear}-01-01`, `${currentYear}-12-31`, geom);
+            const raw = await fetchET(lng, lat, `${startWY - 1}-10-01`, `${currentWY}-09-30`, geom);
             if (raw && Array.isArray(raw) && raw.length > 0) {
-                // Normalize and group by year
                 const normalized = raw.map(d => ({
                     time: d.time || d.date,
                     et: d.et ?? d.ET ?? d.value ?? 0,
                 }));
+                // Group by water year
                 for (const d of normalized) {
-                    const year = new Date(d.time).getFullYear();
-                    if (!allMonthly[year]) allMonthly[year] = [];
-                    allMonthly[year].push(d);
+                    const wy = getWaterYear(d.time);
+                    if (!allMonthly[wy]) allMonthly[wy] = [];
+                    allMonthly[wy].push(d);
                 }
-                // Cache each year and compute totals
-                for (const year of years) {
-                    if (allMonthly[year] && allMonthly[year].length > 0) {
-                        monthlyCache[`${coordKey}:${year}`] = allMonthly[year];
-                        annualTotals[year] = allMonthly[year].reduce((s, d) => s + (d.et || 0), 0);
+                for (const wy of waterYears) {
+                    if (allMonthly[wy] && allMonthly[wy].length > 0) {
+                        monthlyCache[`${coordKey}:wy${wy}`] = allMonthly[wy];
+                        annualTotals[wy] = allMonthly[wy].reduce((s, d) => s + (d.et || 0), 0);
                         hasData = true;
                     }
                 }
             }
         } catch (err) {
             console.error("ET fetch failed:", err);
-            summaryEl.innerHTML = `<div class="error-msg">Error loading ET data: ${err.message}</div>`;
-            return;
+            // Don't return — raster data may still be available
         }
     }
 
-    if (!hasData) {
+    // Look up LandIQ raster data for this field (already in water year)
+    const zonalData = findZonalData(geom);
+    const zonalAnnual = {};   // wy → {mm, months, af}
+    const zonalMonthly = {};  // wy → [{month, et_mm}]
+    if (zonalData) {
+        for (const [wy, nMonths, totalMm, af] of zonalData.ann) {
+            zonalAnnual[wy] = { mm: totalMm, months: nMonths, af };
+        }
+        for (const [wy, mo, etMm] of zonalData.m) {
+            if (!zonalMonthly[wy]) zonalMonthly[wy] = [];
+            zonalMonthly[wy].push({ month: mo, et_mm: etMm });
+        }
+    }
+    selectedField.zonalMonthly = zonalMonthly;
+
+    if (!hasData && Object.keys(zonalAnnual).length === 0) {
         summaryEl.innerHTML = `<div class="error-msg">No ET data available for this location.</div>`;
         return;
     }
 
-    // Render annual summary bars (in inches + acre-feet)
-    const maxET_in = Math.max(...Object.values(annualTotals).map(v => mmToIn(v)), 1);
-    let html = `<div class="annual-summary-title">Annual ET Summary</div>`;
-    const sortedYears = [...years].reverse();
-    for (const year of sortedYears) {
-        const val_mm = annualTotals[year];
-        if (val_mm === undefined) continue;
-        const val_in = mmToIn(val_mm);
-        const val_af = etAcreFeet(val_in, acres);
-        const pct = (val_in / maxET_in * 100).toFixed(1);
-        html += `
-            <div class="annual-row">
-                <span class="annual-year">${year}</span>
-                <div class="annual-bar-bg"><div class="annual-bar" style="width:${pct}%"></div></div>
-                <span class="annual-value">${val_in.toFixed(1)} in</span>
-                <span class="annual-af">${val_af.toFixed(2)} AF</span>
+    // Render water year summary bars
+    const allWYSet = new Set([...Object.keys(annualTotals).map(Number), ...Object.keys(zonalAnnual).map(Number)]);
+    const allWYList = [...allWYSet].sort((a, b) => a - b);
+    const maxET_in = Math.max(
+        ...Object.values(annualTotals).map(v => mmToIn(v)),
+        ...Object.values(zonalAnnual).map(v => mmToIn(v.mm)),
+        1
+    );
+    let html = `<div class="annual-summary-title">Water Year ET Summary (Oct–Sep)</div>`;
+    html += `<div style="display:flex;gap:16px;margin-bottom:8px;font-size:11px">
+        <span style="color:#3b82f6">● OpenET API</span>
+        <span style="color:#f59e0b">● LandIQ Raster</span>
+    </div>`;
+    const sortedWYs = [...allWYList].reverse();
+    for (const wy of sortedWYs) {
+        const api_mm = annualTotals[wy];
+        const raster = zonalAnnual[wy];
+        if (api_mm === undefined && !raster) continue;
+
+        const api_in = api_mm !== undefined ? mmToIn(api_mm) : null;
+        const api_af = api_in !== null ? etAcreFeet(api_in, acres) : null;
+        const raster_in = raster ? mmToIn(raster.mm) : null;
+        const raster_af = raster ? raster.af : null;
+
+        const pctApi = api_in !== null ? (api_in / maxET_in * 100).toFixed(1) : 0;
+        const pctRaster = raster_in !== null ? (raster_in / maxET_in * 100).toFixed(1) : 0;
+
+        html += `<div class="annual-row">
+            <span class="annual-year">WY ${wy}</span>
+            <div class="annual-bar-bg" style="position:relative;height:12px">
+                ${api_in !== null ? `<div class="annual-bar" style="width:${pctApi}%;background:#3b82f6;height:5px;position:absolute;top:0"></div>` : ''}
+                ${raster_in !== null ? `<div class="annual-bar" style="width:${pctRaster}%;background:#f59e0b;height:5px;position:absolute;bottom:0"></div>` : ''}
             </div>
-        `;
+            <span class="annual-value">${api_in !== null ? api_in.toFixed(1) : '—'}</span>
+            <span class="annual-af">${api_af !== null ? api_af.toFixed(2) + ' AF' : ''}${raster_af !== null ? (api_af !== null ? ' / ' : '') + raster_af.toFixed(2) + ' AF' : ''}</span>
+        </div>`;
+        if (raster && raster.months < 12) {
+            html += `<div style="font-size:10px;color:#64748b;text-align:right;margin-top:-2px">${raster.months}/12 months raster</div>`;
+        }
     }
     summaryEl.innerHTML = `<div class="annual-summary">${html}</div>`;
 
-    // Show year buttons
+    // Show water year buttons
     yearSelector.style.display = "flex";
     yearSelector.innerHTML = `<label>Monthly Detail:</label>`;
-    const displayYears = [...years].reverse();
-    for (const year of displayYears) {
-        if (!allMonthly[year]) continue;
+    const chartWYSet = new Set([
+        ...Object.keys(allMonthly).map(Number),
+        ...Object.keys(zonalMonthly).map(Number),
+    ]);
+    const displayWYs = [...chartWYSet].sort((a, b) => b - a);
+    for (const wy of displayWYs) {
+        if (!allMonthly[wy] && !zonalMonthly[wy]) continue;
         const btn = document.createElement("button");
         btn.className = "year-btn";
-        btn.textContent = year;
+        btn.textContent = `WY ${wy}`;
         btn.addEventListener("click", () => {
             document.querySelectorAll(".year-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            renderMonthlyChart(allMonthly[year], year);
+            renderMonthlyChart(allMonthly[wy] || [], wy);
         });
         yearSelector.appendChild(btn);
     }
 
-    // Auto-select most recent year with data
-    const latestYear = displayYears.find(y => allMonthly[y]);
-    if (latestYear) {
+    // Auto-select most recent water year with data
+    const latestWY = displayWYs.find(wy => allMonthly[wy] || zonalMonthly[wy]);
+    if (latestWY) {
         const btns = yearSelector.querySelectorAll(".year-btn");
-        btns.forEach(b => { if (b.textContent == latestYear) b.click(); });
+        btns.forEach(b => { if (b.textContent === `WY ${latestWY}`) b.click(); });
     }
 }
 
@@ -503,50 +580,126 @@ async function fetchET(lng, lat, dateStart, dateEnd, geom) {
 
 /* ── Render monthly chart ────────────────────────────── */
 
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Water year order: Oct–Sep
+const MONTH_LABELS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"];
+// Map calendar month (0-based) to water year month index (0-based)
+function calMonthToWYIndex(calMonth) {
+    return (calMonth + 3) % 12;  // Oct(9)→0, Nov(10)→1, ..., Sep(8)→11
+}
+// Water year for a calendar date: Oct-Dec → next year, Jan-Sep → same year
+function getWaterYear(date) {
+    const d = new Date(date);
+    return d.getMonth() >= 9 ? d.getFullYear() + 1 : d.getFullYear();
+}
 
-function renderMonthlyChart(data, year) {
+function renderMonthlyChart(data, wy) {
     const chartTitle = document.getElementById("chart-title");
     const acres = selectedField ? selectedField.acres : 0;
-    chartTitle.textContent = `Monthly ET — ${year}`;
+    chartTitle.textContent = `Monthly ET — WY ${wy} (Oct ${wy-1} – Sep ${wy})`;
 
-    // Ensure 12 months (fill missing with 0), convert mm → inches
+    // OpenET API data: map to water year month slots (Oct=0, Nov=1, ..., Sep=11)
     const values_in = new Array(12).fill(0);
     data.forEach(d => {
-        const month = new Date(d.time).getMonth();
-        values_in[month] = mmToIn(d.et || 0);
+        const calMonth = new Date(d.time).getMonth(); // 0-based
+        const wyIdx = calMonthToWYIndex(calMonth);
+        values_in[wyIdx] = mmToIn(d.et || 0);
     });
 
-    const values_af = values_in.map(v => etAcreFeet(v, acres));
+    // LandIQ raster data for same water year
+    const raster_in = new Array(12).fill(null);
+    if (selectedField && selectedField.zonalMonthly && selectedField.zonalMonthly[wy]) {
+        for (const m of selectedField.zonalMonthly[wy]) {
+            const wyIdx = calMonthToWYIndex(m.month - 1); // m.month is 1-based
+            raster_in[wyIdx] = mmToIn(m.et_mm);
+        }
+    }
+
+    // Cumulative acre-feet for OpenET
+    const cumAF_api = [];
+    let runningAPI = 0;
+    for (let i = 0; i < 12; i++) {
+        runningAPI += etAcreFeet(values_in[i], acres);
+        cumAF_api.push(runningAPI);
+    }
+
+    // Cumulative acre-feet for LandIQ raster
+    const cumAF_raster = [];
+    let runningRaster = 0;
+    let hasRasterCum = false;
+    for (let i = 0; i < 12; i++) {
+        if (raster_in[i] !== null) {
+            runningRaster += etAcreFeet(raster_in[i], acres);
+            hasRasterCum = true;
+        }
+        cumAF_raster.push(hasRasterCum ? runningRaster : null);
+    }
+
     const color = selectedField ? selectedField.color : "#3b82f6";
+    const hasRaster = raster_in.some(v => v !== null);
 
     if (etChart) etChart.destroy();
+
+    const datasets = [{
+        label: "OpenET (in)",
+        data: values_in,
+        backgroundColor: color + "99",
+        borderColor: color,
+        borderWidth: 1,
+        borderRadius: 4,
+        yAxisID: "y",
+    }];
+
+    if (hasRaster) {
+        datasets.push({
+            label: "LandIQ Raster (in)",
+            data: raster_in,
+            backgroundColor: "#f59e0b66",
+            borderColor: "#f59e0b",
+            borderWidth: 1,
+            borderRadius: 4,
+            yAxisID: "y",
+        });
+    }
+
+    // Cumulative AF lines
+    const hasApiData = values_in.some(v => v > 0);
+    if (hasApiData) {
+        datasets.push({
+            label: "OpenET Cum. AF",
+            data: cumAF_api,
+            type: "line",
+            borderColor: "#60a5fa",
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: "#60a5fa",
+            tension: 0.3,
+            yAxisID: "y1",
+        });
+    }
+
+    if (hasRaster) {
+        datasets.push({
+            label: "LandIQ Cum. AF",
+            data: cumAF_raster,
+            type: "line",
+            borderColor: "#fbbf24",
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            borderDash: [5, 3],
+            pointRadius: 3,
+            pointBackgroundColor: "#fbbf24",
+            tension: 0.3,
+            yAxisID: "y1",
+        });
+    }
 
     const ctx = document.getElementById("et-chart").getContext("2d");
     etChart = new Chart(ctx, {
         type: "bar",
         data: {
             labels: MONTH_LABELS,
-            datasets: [{
-                label: "ET (in)",
-                data: values_in,
-                backgroundColor: color + "99",
-                borderColor: color,
-                borderWidth: 1,
-                borderRadius: 4,
-                yAxisID: "y",
-            }, {
-                label: "Acre-Feet",
-                data: values_af,
-                type: "line",
-                borderColor: "#60a5fa",
-                backgroundColor: "transparent",
-                borderWidth: 2,
-                pointRadius: 3,
-                pointBackgroundColor: "#60a5fa",
-                tension: 0.3,
-                yAxisID: "y1",
-            }],
+            datasets,
         },
         options: {
             responsive: true,
@@ -561,10 +714,10 @@ function renderMonthlyChart(data, year) {
                 tooltip: {
                     callbacks: {
                         label: (ctx) => {
-                            if (ctx.dataset.label === "ET (in)") {
-                                return `ET: ${ctx.parsed.y.toFixed(2)} in`;
+                            if (ctx.dataset.label.includes("Cum. AF")) {
+                                return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} AF`;
                             }
-                            return `Volume: ${ctx.parsed.y.toFixed(3)} AF`;
+                            return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} in`;
                         },
                     },
                 },
@@ -592,7 +745,7 @@ function renderMonthlyChart(data, year) {
                         callback: (v) => v.toFixed(2) + " AF",
                     },
                     beginAtZero: true,
-                    title: { display: true, text: "Acre-Feet", color: "#60a5fa", font: { size: 11 } },
+                    title: { display: true, text: "Cumulative AF", color: "#60a5fa", font: { size: 11 } },
                 },
             },
         },

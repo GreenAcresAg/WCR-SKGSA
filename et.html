@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;">
     <title>OpenET Field Explorer — SFKGSA</title>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css">
     <style>
@@ -279,7 +280,7 @@
 <div class="et-panel">
     <div class="et-header">
         <h1>OpenET Field Explorer</h1>
-        <div class="subtitle">Click a crop field to view ET data &bull; 2023 &amp; 2024 crop labels</div>
+        <div class="subtitle">Click a crop field to view ET data &bull; OpenET API + LandIQ Raster comparison</div>
     </div>
 
     <div id="field-info" class="field-info empty">
@@ -304,6 +305,6 @@
 <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="et.js?v=8"></script>
+<script src="et.js?v=11"></script>
 </body>
 </html>
